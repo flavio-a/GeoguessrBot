@@ -1,5 +1,6 @@
 import sqlite3
 
+# Interface to the DB
 class DBInterface:
 	def __init__(self, db_name):
 		self.db_name = db_name
@@ -9,6 +10,7 @@ class DBInterface:
 	def __del__(self):
 		self.db.close()
 
+	# Creates the DB if it doesn't exist
 	def createdb(self):
 		cursor = self.db.cursor()
 		cursor.execute('''
@@ -39,6 +41,7 @@ class DBInterface:
 		''')
 		self.db.commit()
 
+	# Add a player to the DB
 	def createPlayer(self, name, surname):
 		cursor = self.db.cursor()
 		cursor.execute('''
@@ -47,6 +50,7 @@ class DBInterface:
 		'''.format(name = name, surname = surname))
 		self.db.commit()
 
+	# Get the ID of a player from name and surname
 	def getPlayerId(self, name, surname):
 		cursor = self.db.cursor()
 		query = '''
@@ -63,6 +67,8 @@ class DBInterface:
 			raise IndexError('Too many matches found with the passed link')
 		return fetches[0][0]
 
+	# Given name and surname, returns the player's ID. If they don't exist,
+	# create them
 	def findOrCreatePlayer(self, name, surname):
 		cursor = self.db.cursor()
 		query = '''
