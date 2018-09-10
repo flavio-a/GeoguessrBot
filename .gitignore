@@ -1,0 +1,6 @@
+geoguessr/
+__pycache__/
+*.db
+pages/*
+
+config.py
