@@ -4,15 +4,12 @@ import sqlite3
 class DBInterface:
 	def __init__(self, db_name):
 		self.db_name = db_name
-		self.db = sqlite3.connect(db_name)
 		self.createdb()
-
-	def __del__(self):
-		self.db.close()
 
 	# Creates the DB if it doesn't exist
 	def createdb(self):
-		cursor = self.db.cursor()
+		db = sqlite3.connect(self.db_name)
+		cursor = db.cursor()
 		cursor.execute('''
 			CREATE TABLE IF NOT EXISTS players (
 				id_player INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
@@ -39,34 +36,38 @@ class DBInterface:
 				UNIQUE(id_player, id_match)
 			)
 		''')
-		self.db.commit()
+		db.commit()
+		db.close()
 
 
 	# Add a player to the DB
 	def createPlayer(self, name):
-		cursor = self.db.cursor()
+		db = sqlite3.connect(self.db_name)
+		cursor = db.cursor()
 		cursor.execute('''
 			INSERT INTO players (name)
 			VALUES ('{name}');
 		'''.format(name = name))
-		self.db.commit()
+		db.commit()
+		db.close()
 
 	# Get the ID of a player from name and surname
 	def getPlayerId(self, name):
-		cursor = self.db.cursor()
-		query = '''
-			SELECT id_player
-			FROM players
-			WHERE name = '{name}'
-		'''.format(name = name)
-		fetches = cursor.execute(query).fetchall()
-		if len(fetches) == 0:
-			return None
-		if len(fetches) > 1:
-			# Should never happen because of uniqueness constraint, is here
-			# just to be sure
-			raise IndexError('Too many matches found with the passed name')
-		return fetches[0][0]
+		with sqlite3.connect(self.db_name) as db:
+			cursor = db.cursor()
+			query = '''
+				SELECT id_player
+				FROM players
+				WHERE name = '{name}'
+			'''.format(name = name)
+			fetches = cursor.execute(query).fetchall()
+			if len(fetches) == 0:
+				return None
+			if len(fetches) > 1:
+				# Should never happen because of uniqueness constraint, is here
+				# just to be sure
+				raise IndexError('Too many matches found with the passed name')
+			return fetches[0][0]
 
 	# Given name and surname, returns the player's ID. If they don't exist,
 	# creates them
@@ -79,34 +80,37 @@ class DBInterface:
 
 
 	# Add a match to the DB
-	def createMatch(self, mapType, timelimit, link):
-		cursor = self.db.cursor()
+	def createMatch(self, link, mapType, timelimit):
+		db = sqlite3.connect(self.db_name)
+		cursor = db.cursor()
 		cursor.execute('''
-			INSERT INTO matches (map, timelimit)
-			VALUES ('{map}', {timelimit});
-		'''.format(map = mapType, timelimit = timelimit))
-		self.db.commit()
+			INSERT INTO matches (link, map, timelimit)
+			VALUES ('{link}', '{map}', {timelimit});
+		'''.format(link = link, map = mapType, timelimit = timelimit))
+		db.commit()
+		db.close()
 
 	# Get the ID of a match from its link. Type of map and time limit are
 	# optional
 	def getMatchId(self, link, mapType, timelimit):
-		cursor = self.db.cursor()
-		query = '''
-			SELECT id_match
-			FROM matches
-			WHERE link = '{link}'
-		'''.format(link = link)
-		if mapType:
-			query += "AND map = '{}'".format(mapType)
-		if timelimit:
-			query += 'AND timelimit = {}'.format(timelimit)
-		fetches = cursor.execute(query).fetchall()
-		if len(fetches) == 0:
-			return None
-		if len(fetches) > 1:
-			# Should never happen because link is unique, is here just to be sure
-			raise IndexError('Too many matches found with the passed link')
-		return fetches[0][0]
+		with sqlite3.connect(self.db_name) as db:
+			cursor = db.cursor()
+			query = '''
+				SELECT id_match
+				FROM matches
+				WHERE link = '{link}'
+			'''.format(link = link)
+			if mapType:
+				query += "AND map = '{}'".format(mapType)
+			if timelimit:
+				query += 'AND timelimit = {}'.format(timelimit)
+			fetches = cursor.execute(query).fetchall()
+			if len(fetches) == 0:
+				return None
+			if len(fetches) > 1:
+				# Should never happen because link is unique, is here just to be sure
+				raise IndexError('Too many matches found with the passed link')
+			return fetches[0][0]
 
 	# Given link and possibly mapType and timelimit, returns the match's ID. If
 	# it doesn't exist, creates it
@@ -120,31 +124,38 @@ class DBInterface:
 
 	# Add a playerMatch to the DB
 	def createPlayerMatch(self, id_player, id_match, total_score):
-		cursor = self.db.cursor()
+		db = sqlite3.connect(self.db_name)
+		cursor = db.cursor()
 		cursor.execute('''
 			INSERT INTO playersMatches (id_player, id_match, total_score)
 			VALUES ({id_player}, {id_match}, {total_score});
-		'''.format(id_player = id_player, id_match = id_match, total_score = total_score))
-		self.db.commit()
+		'''.format(
+			id_player = id_player,
+			id_match = id_match,
+			total_score = total_score
+		))
+		db.commit()
+		db.close()
 
 	# Get the ID of a player from name and surname
 	def getPlayerMatchId(self, id_player, id_match, total_score):
-		cursor = self.db.cursor()
-		query = '''
-			SELECT id_playerMatches
-			FROM playersMatches
-			WHERE id_player = {id_player} AND id_match = {id_match}
-		'''.format(id_player = id_player, id_match = id_match)
-		if total_score:
-			query += "AND total_score = '{}'".format(total_score)
-		fetches = cursor.execute(query).fetchall()
-		if len(fetches) == 0:
-			return None
-		if len(fetches) > 1:
-			# Should never happen because of uniqueness constraint, is here
-			# just to be sure
-			raise IndexError('Too many matches found with the passed ids')
-		return fetches[0][0]
+		with sqlite3.connect(self.db_name) as db:
+			cursor = db.cursor()
+			query = '''
+				SELECT id_playerMatches
+				FROM playersMatches
+				WHERE id_player = {id_player} AND id_match = {id_match}
+			'''.format(id_player = id_player, id_match = id_match)
+			if total_score:
+				query += "AND total_score = '{}'".format(total_score)
+			fetches = cursor.execute(query).fetchall()
+			if len(fetches) == 0:
+				return None
+			if len(fetches) > 1:
+				# Should never happen because of uniqueness constraint, is here
+				# just to be sure
+				raise IndexError('Too many matches found with the passed ids')
+			return fetches[0][0]
 
 	# Given name and surname, returns the player's ID. If they don't exist,
 	# creates them
@@ -161,9 +172,27 @@ class DBInterface:
 	# parsed into a Python dict
 	def updateMatch(self, link, json):
 		id_match = self.findOrCreateMatch(
-							link, json['mapSlug'],
+							link,
+							json['mapSlug'],
 							json['roundTimeLimit']
 						)
 		for player in json['hiScores']:
 			id_player = self.findOrCreatePlayer(player['playerName'])
-			self.findOrCreateMatch(id_player, id_match, player['totalScore'])
+			self.findOrCreatePlayerMatch(id_player, id_match, player['totalScore'])
+
+
+	# Gets the list of pairs (player, total_score) for the passed category
+	def getScoreList(self, mapType, timelimit):
+		with sqlite3.connect(self.db_name) as db:
+			cursor = db.cursor()
+			query = '''
+				SELECT p.name, SUM(pm.total_score) AS score
+				FROM playersMatches pm, players p, matches m
+				WHERE p.id_player = pm.id_player
+					AND pm.id_match = m.id_match
+					AND m.map = '{map}'
+					AND m.timelimit = {timelimit}
+				GROUP BY p.id_player, p.name, m.map, m.timelimit
+				ORDER BY score DESC;
+			'''.format(map = mapType, timelimit = timelimit)
+			return cursor.execute(query).fetchall()
