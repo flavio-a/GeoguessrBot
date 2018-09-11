@@ -199,7 +199,7 @@ class DBInterface:
 				SELECT m.link
 				FROM matches m;
 			'''
-			return cursor.execute(query).fetchall()
+			return map(lambda x: x[0], cursor.execute(query).fetchall())
 
 
 	# Updates a match in the DB, possibly creating any row needed. The first
