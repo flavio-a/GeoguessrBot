@@ -68,7 +68,7 @@ class DBInterface:
 		cursor.execute('''
 			INSERT INTO players (name)
 			VALUES ('{name}');
-		'''.format(name = name))
+		'''.format(name = name.lower()))
 		db.commit()
 		db.close()
 
@@ -80,7 +80,7 @@ class DBInterface:
 				SELECT id_player
 				FROM players
 				WHERE name = '{name}'
-			'''.format(name = name)
+			'''.format(name = name.lower())
 			cursor.execute(query)
 			fetches = cursor.fetchall()
 			if len(fetches) == 0:
