@@ -2,9 +2,12 @@ import sqlite3
 
 # Interface to the DB
 class DBInterface:
-	def __init__(self, db_name, whitelist = []):
+	def __init__(self, db_name, whitelist = None):
 		self.db_name = db_name
-		self.whitelist = whitelist if type(whitelist) ==  type([]) else []
+		if type(whitelist) ==  type([]):
+			self.whitelist = [x.lower() for x in whitelist]
+		else:
+			self.loadWithelist()
 		self.createdb()
 
 	# Creates the DB if it doesn't exist
@@ -41,9 +44,26 @@ class DBInterface:
 		db.close()
 
 
+	# Adds a name to the whitelist
+	def addToWhitelist(self, name):
+		if name.lower() not in self.whitelist:
+			self.whitelist.append(name.lower())
+			self.createPlayer(name)
+
+	# Loads whitelist from the DB (adding each name saved)
+	def loadWithelist(self):
+		with sqlite3.connect(self.db_name) as db:
+			cursor = db.cursor()
+			query = '''
+				SELECT p.name
+				FROM players p;
+			'''
+			self.whitelist = [x[0].lower() for x in cursor.execute(query).fetchall()]
+
+
 	# Adds a player to the DB, only if they're in withelist
 	def createPlayer(self, name):
-		if name not in self.whitelist:
+		if name.lower() not in self.whitelist:
 			return
 		db = sqlite3.connect(self.db_name)
 		cursor = db.cursor()
@@ -75,7 +95,7 @@ class DBInterface:
 	# Given name and surname, returns the player's ID. If they don't exist,
 	# creates them. If name isn't in whitelist, returns None
 	def findOrCreatePlayer(self, name):
-		if name not in self.whitelist:
+		if name.lower() not in self.whitelist:
 			return None
 		player_id = self.getPlayerId(name)
 		if player_id:

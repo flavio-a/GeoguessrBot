@@ -50,13 +50,13 @@ def leaderboards(bot, update, args):
 	)
 
 # Given an URL, refresh the corresponding match in the DB, possibly creating it
-def refreshMatch(url):
-	req = urllib.request.Request(url)
+def refreshMatch(fullurl, link):
+	req = urllib.request.Request(fullurl)
 	html_source = urllib.request.urlopen(req).read().decode("utf-8")
 	match_data = DATA_JSON_RE.search(html_source).group(1)
 	# with open('pages/data.json', 'a') as f:
 	# 	f.write(match_data + '\n')
-	db.updateMatch(GEOGUESSR_RE.search(url).group(1), json.loads(match_data))
+	db.updateMatch(link, json.loads(match_data))
 
 # Handler for '/refresh' command
 def refresh(bot, update, args):
@@ -66,14 +66,33 @@ def refresh(bot, update, args):
 		links = [GEOGUESSR_RE.search(args[0]).group(1)]
 	base_url = GEOGUESSR_URL.replace('/challenge/', '/results/')
 	for link in links:
-		refreshMatch(base_url + link)
+		refreshMatch(base_url + link, link)
 		bot.send_message(chat_id=update.message.chat_id, text='Refreshed ' + base_url + link)
+
+# Handler fot '/whitelist' command
+def whitelist(bot, update, args):
+	if len(args) > 0:
+		db.addToWhitelist(args[0])
+		print('Added ' + args[0])
+		bot.send_message(
+			chat_id = update.message.chat_id,
+			text = 'Added ' + args[0] + ' to whitelist'
+		)
+	else:
+		bot.send_message(
+			chat_id = update.message.chat_id,
+			text = "Current whitelist:\n" + "\n".join(db.whitelist)
+		)
+
 
 # Handler for text messages processing
 def processMessage(bot, update):
 	match = GEOGUESSR_RE.search(update.message.text)
 	if match is not None:
-		refreshMatch(match.group(0).replace('/challenge/', '/results/'))
+		refreshMatch(
+			match.group(0).replace('/challenge/', '/results/'),
+			match.group(1)
+		)
 		bot.send_message(chat_id=update.message.chat_id, text='Trovato link di GeoGuessr')
 
 
@@ -82,6 +101,7 @@ updater.dispatcher.add_handler(telegram.ext.CommandHandler('start', start))
 updater.dispatcher.add_handler(telegram.ext.CommandHandler('rank', rank, pass_args=True))
 updater.dispatcher.add_handler(telegram.ext.CommandHandler('leaderboards', leaderboards, pass_args=True))
 updater.dispatcher.add_handler(telegram.ext.CommandHandler('refresh', refresh, pass_args=True))
+updater.dispatcher.add_handler(telegram.ext.CommandHandler('whitelist', whitelist, pass_args=True))
 updater.dispatcher.add_handler(telegram.ext.MessageHandler(
 		telegram.ext.Filters.text,
 		processMessage
