@@ -2,8 +2,9 @@ import sqlite3
 
 # Interface to the DB
 class DBInterface:
-	def __init__(self, db_name):
+	def __init__(self, db_name, whitelist = []):
 		self.db_name = db_name
+		self.whitelist = whitelist if type(whitelist) ==  type([]) else []
 		self.createdb()
 
 	# Creates the DB if it doesn't exist
@@ -40,8 +41,10 @@ class DBInterface:
 		db.close()
 
 
-	# Add a player to the DB
+	# Adds a player to the DB, only if they're in withelist
 	def createPlayer(self, name):
+		if name not in self.whitelist:
+			return
 		db = sqlite3.connect(self.db_name)
 		cursor = db.cursor()
 		cursor.execute('''
@@ -51,7 +54,7 @@ class DBInterface:
 		db.commit()
 		db.close()
 
-	# Get the ID of a player from name and surname
+	# Gets the ID of a player from name and surname
 	def getPlayerId(self, name):
 		with sqlite3.connect(self.db_name) as db:
 			cursor = db.cursor()
@@ -70,8 +73,10 @@ class DBInterface:
 			return fetches[0][0]
 
 	# Given name and surname, returns the player's ID. If they don't exist,
-	# creates them
+	# creates them. If name isn't in whitelist, returns None
 	def findOrCreatePlayer(self, name):
+		if name not in self.whitelist:
+			return None
 		player_id = self.getPlayerId(name)
 		if player_id:
 			return player_id
@@ -79,7 +84,7 @@ class DBInterface:
 		return self.getPlayerId(name)
 
 
-	# Add a match to the DB
+	# Adds a match to the DB
 	def createMatch(self, link, mapType, timelimit):
 		db = sqlite3.connect(self.db_name)
 		cursor = db.cursor()
@@ -90,7 +95,7 @@ class DBInterface:
 		db.commit()
 		db.close()
 
-	# Get the ID of a match from its link. Type of map and time limit are
+	# Gets the ID of a match from its link. Type of map and time limit are
 	# optional
 	def getMatchId(self, link, mapType, timelimit):
 		with sqlite3.connect(self.db_name) as db:
@@ -122,7 +127,7 @@ class DBInterface:
 		return self.getMatchId(link, mapType, timelimit)
 
 
-	# Add a playerMatch to the DB
+	# Adds a playerMatch to the DB
 	def createPlayerMatch(self, id_player, id_match, total_score):
 		db = sqlite3.connect(self.db_name)
 		cursor = db.cursor()
@@ -137,7 +142,7 @@ class DBInterface:
 		db.commit()
 		db.close()
 
-	# Get the ID of a player from name and surname
+	# Gets the ID of a player from name and surname
 	def getPlayerMatchId(self, id_player, id_match, total_score):
 		with sqlite3.connect(self.db_name) as db:
 			cursor = db.cursor()
@@ -166,6 +171,16 @@ class DBInterface:
 		self.createPlayerMatch(id_player, id_match, total_score)
 		return self.getPlayerMatchId(id_player, id_match, total_score)
 
+	# Gets the list of saved links
+	def getLinksList(self):
+		with sqlite3.connect(self.db_name) as db:
+			cursor = db.cursor()
+			query = '''
+				SELECT m.link
+				FROM matches m;
+			'''
+			return cursor.execute(query).fetchall()
+
 
 	# Updates a match in the DB, possibly creating any row needed. The first
 	# parameter is the match's link, the second is the json from the page
@@ -178,7 +193,12 @@ class DBInterface:
 						)
 		for player in json['hiScores']:
 			id_player = self.findOrCreatePlayer(player['playerName'])
-			self.findOrCreatePlayerMatch(id_player, id_match, player['totalScore'])
+			if id_player is not None:
+				self.findOrCreatePlayerMatch(
+					id_player,
+					id_match,
+					player['totalScore']
+				)
 
 
 	# Gets the list of pairs (player, total_score) for the passed category
@@ -192,7 +212,25 @@ class DBInterface:
 					AND pm.id_match = m.id_match
 					AND m.map = '{map}'
 					AND m.timelimit = {timelimit}
-				GROUP BY p.id_player, p.name, m.map, m.timelimit
+				GROUP BY p.id_player, p.name
 				ORDER BY score DESC;
+			'''.format(map = mapType, timelimit = timelimit)
+			return cursor.execute(query).fetchall()
+
+	# Gets a list of at most 3 pairs (player, total_score) containing the
+	# records for the passed category
+	def getLeaderbords(self, mapType, timelimit):
+		with sqlite3.connect(self.db_name) as db:
+			cursor = db.cursor()
+			query = '''
+				SELECT p.name, MAX(pm.total_score) AS score
+				FROM playersMatches pm, players p, matches m
+				WHERE p.id_player = pm.id_player
+					AND pm.id_match = m.id_match
+					AND m.map = '{map}'
+					AND m.timelimit = {timelimit}
+				GROUP BY p.id_player, p.name
+				ORDER BY score DESC
+				LIMIT 3;
 			'''.format(map = mapType, timelimit = timelimit)
 			return cursor.execute(query).fetchall()
