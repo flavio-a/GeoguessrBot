@@ -201,6 +201,18 @@ class DBInterface:
 			'''
 			return map(lambda x: x[0], cursor.execute(query).fetchall())
 
+	# Gets the list of saved id_match  for the passed category
+	def getMatchesList(self, mapType, timelimit):
+		with sqlite3.connect(self.db_name) as db:
+			cursor = db.cursor()
+			query = '''
+				SELECT m.id_match
+				FROM matches m
+				WHERE m.map = '{map}'
+					AND m.timelimit = {timelimit};
+			'''.format(map = mapType, timelimit = timelimit)
+			return map(lambda x: x[0], cursor.execute(query).fetchall())
+
 
 	# Updates a match in the DB, possibly creating any row needed. The first
 	# parameter is the match's link, the second is the json from the page
@@ -220,6 +232,20 @@ class DBInterface:
 					player['totalScore']
 				)
 
+
+	# Gets the list of pairs (player, score) for a single match from its ID
+	def getMatchResults(self, match_id):
+		with sqlite3.connect(self.db_name) as db:
+			cursor = db.cursor()
+			query = '''
+				SELECT p.name, SUM(pm.total_score) AS score
+				FROM playersMatches pm, players p
+				WHERE p.id_player = pm.id_player
+					AND pm.id_match = {match_id}
+				GROUP BY p.id_player, p.name
+				ORDER BY score DESC;
+			'''.format(match_id = match_id)
+			return cursor.execute(query).fetchall()
 
 	# Gets the list of pairs (player, total_score) for the passed category
 	def getScoreList(self, mapType, timelimit):
