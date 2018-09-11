@@ -4,11 +4,11 @@ import sqlite3
 class DBInterface:
 	def __init__(self, db_name, whitelist = None):
 		self.db_name = db_name
+		self.createdb()
 		if type(whitelist) ==  type([]):
 			self.whitelist = [x.lower() for x in whitelist]
 		else:
 			self.loadWithelist()
-		self.createdb()
 
 	# Creates the DB if it doesn't exist
 	def createdb(self):

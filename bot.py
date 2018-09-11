@@ -72,11 +72,11 @@ def refresh(bot, update, args):
 # Handler fot '/whitelist' command
 def whitelist(bot, update, args):
 	if len(args) > 0:
-		db.addToWhitelist(args[0])
-		print('Added ' + args[0])
+		db.addToWhitelist(' '.join(args))
+		print('Added ' + ' '.join(args))
 		bot.send_message(
 			chat_id = update.message.chat_id,
-			text = 'Added ' + args[0] + ' to whitelist'
+			text = 'Added ' + ' '.join(args) + ' to whitelist'
 		)
 	else:
 		bot.send_message(
