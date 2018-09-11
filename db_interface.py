@@ -1,9 +1,9 @@
-import sqlite3
+import psycopg2
 
 # Interface to the DB
 class DBInterface:
-	def __init__(self, db_name, whitelist = None):
-		self.db_name = db_name
+	def __init__(self, db_info, whitelist = None):
+		self.db_info = db_info
 		self.createdb()
 		if type(whitelist) ==  type([]):
 			self.whitelist = [x.lower() for x in whitelist]
@@ -12,31 +12,28 @@ class DBInterface:
 
 	# Creates the DB if it doesn't exist
 	def createdb(self):
-		db = sqlite3.connect(self.db_name)
+		db = psycopg2.connect(self.db_info)
 		cursor = db.cursor()
 		cursor.execute('''
 			CREATE TABLE IF NOT EXISTS players (
-				id_player INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-				name VARCHAR(60),
-				UNIQUE(name)
+				id_player SERIAL NOT NULL PRIMARY KEY,
+				name VARCHAR(60) UNIQUE
 			)
 		''')
 		cursor.execute('''
 			CREATE TABLE IF NOT EXISTS matches (
-				id_match INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+				id_match SERIAL NOT NULL PRIMARY KEY,
 				link VARCHAR(32) UNIQUE,
 				map VARCHAR(50),
-				timelimit INTEGER UNSIGNED
+				timelimit NUMERIC CHECK (timelimit > 0)
 			)
 		''')
 		cursor.execute('''
 			CREATE TABLE IF NOT EXISTS playersMatches (
-				id_playerMatches INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-				id_player INTEGER,
-				id_match INTEGER,
+				id_playerMatches serial NOT NULL PRIMARY KEY,
+				id_player INTEGER REFERENCES players(id_player),
+				id_match INTEGER REFERENCES matches(id_match),
 				total_score INTEGER,
-				FOREIGN KEY (id_player) REFERENCES players(id_player)
-				FOREIGN KEY (id_match) REFERENCES matches(id_match),
 				UNIQUE(id_player, id_match)
 			)
 		''')
@@ -52,20 +49,21 @@ class DBInterface:
 
 	# Loads whitelist from the DB (adding each name saved)
 	def loadWithelist(self):
-		with sqlite3.connect(self.db_name) as db:
+		with psycopg2.connect(self.db_info) as db:
 			cursor = db.cursor()
 			query = '''
 				SELECT p.name
 				FROM players p;
 			'''
-			self.whitelist = [x[0].lower() for x in cursor.execute(query).fetchall()]
+			cursor.execute(query)
+			self.whitelist = [x[0].lower() for x in cursor.fetchall()]
 
 
 	# Adds a player to the DB, only if they're in withelist
 	def createPlayer(self, name):
 		if name.lower() not in self.whitelist:
 			return
-		db = sqlite3.connect(self.db_name)
+		db = psycopg2.connect(self.db_info)
 		cursor = db.cursor()
 		cursor.execute('''
 			INSERT INTO players (name)
@@ -76,14 +74,15 @@ class DBInterface:
 
 	# Gets the ID of a player from name and surname
 	def getPlayerId(self, name):
-		with sqlite3.connect(self.db_name) as db:
+		with psycopg2.connect(self.db_info) as db:
 			cursor = db.cursor()
 			query = '''
 				SELECT id_player
 				FROM players
 				WHERE name = '{name}'
 			'''.format(name = name)
-			fetches = cursor.execute(query).fetchall()
+			cursor.execute(query)
+			fetches = cursor.fetchall()
 			if len(fetches) == 0:
 				return None
 			if len(fetches) > 1:
@@ -106,7 +105,7 @@ class DBInterface:
 
 	# Adds a match to the DB
 	def createMatch(self, link, mapType, timelimit):
-		db = sqlite3.connect(self.db_name)
+		db = psycopg2.connect(self.db_info)
 		cursor = db.cursor()
 		cursor.execute('''
 			INSERT INTO matches (link, map, timelimit)
@@ -118,7 +117,7 @@ class DBInterface:
 	# Gets the ID of a match from its link. Type of map and time limit are
 	# optional
 	def getMatchId(self, link, mapType, timelimit):
-		with sqlite3.connect(self.db_name) as db:
+		with psycopg2.connect(self.db_info) as db:
 			cursor = db.cursor()
 			query = '''
 				SELECT id_match
@@ -129,7 +128,8 @@ class DBInterface:
 				query += "AND map = '{}'".format(mapType)
 			if timelimit:
 				query += 'AND timelimit = {}'.format(timelimit)
-			fetches = cursor.execute(query).fetchall()
+			cursor.execute(query)
+			fetches = cursor.fetchall()
 			if len(fetches) == 0:
 				return None
 			if len(fetches) > 1:
@@ -149,7 +149,7 @@ class DBInterface:
 
 	# Adds a playerMatch to the DB
 	def createPlayerMatch(self, id_player, id_match, total_score):
-		db = sqlite3.connect(self.db_name)
+		db = psycopg2.connect(self.db_info)
 		cursor = db.cursor()
 		cursor.execute('''
 			INSERT INTO playersMatches (id_player, id_match, total_score)
@@ -164,7 +164,7 @@ class DBInterface:
 
 	# Gets the ID of a player from name and surname
 	def getPlayerMatchId(self, id_player, id_match, total_score):
-		with sqlite3.connect(self.db_name) as db:
+		with psycopg2.connect(self.db_info) as db:
 			cursor = db.cursor()
 			query = '''
 				SELECT id_playerMatches
@@ -173,7 +173,8 @@ class DBInterface:
 			'''.format(id_player = id_player, id_match = id_match)
 			if total_score:
 				query += "AND total_score = '{}'".format(total_score)
-			fetches = cursor.execute(query).fetchall()
+			cursor.execute(query)
+			fetches = cursor.fetchall()
 			if len(fetches) == 0:
 				return None
 			if len(fetches) > 1:
@@ -193,17 +194,18 @@ class DBInterface:
 
 	# Gets the list of saved links
 	def getLinksList(self):
-		with sqlite3.connect(self.db_name) as db:
+		with psycopg2.connect(self.db_info) as db:
 			cursor = db.cursor()
 			query = '''
 				SELECT m.link
 				FROM matches m;
 			'''
-			return map(lambda x: x[0], cursor.execute(query).fetchall())
+			cursor.execute(query)
+			return map(lambda x: x[0], cursor.fetchall())
 
 	# Gets the list of saved id_match  for the passed category
 	def getMatchesList(self, mapType, timelimit):
-		with sqlite3.connect(self.db_name) as db:
+		with psycopg2.connect(self.db_info) as db:
 			cursor = db.cursor()
 			query = '''
 				SELECT m.id_match
@@ -211,7 +213,8 @@ class DBInterface:
 				WHERE m.map = '{map}'
 					AND m.timelimit = {timelimit};
 			'''.format(map = mapType, timelimit = timelimit)
-			return map(lambda x: x[0], cursor.execute(query).fetchall())
+			cursor.execute(query)
+			return map(lambda x: x[0], cursor.fetchall())
 
 
 	# Updates a match in the DB, possibly creating any row needed. The first
@@ -235,7 +238,7 @@ class DBInterface:
 
 	# Gets the list of pairs (player, score) for a single match from its ID
 	def getMatchResults(self, match_id):
-		with sqlite3.connect(self.db_name) as db:
+		with psycopg2.connect(self.db_info) as db:
 			cursor = db.cursor()
 			query = '''
 				SELECT p.name, SUM(pm.total_score) AS score
@@ -245,11 +248,12 @@ class DBInterface:
 				GROUP BY p.id_player, p.name
 				ORDER BY score DESC;
 			'''.format(match_id = match_id)
-			return cursor.execute(query).fetchall()
+			cursor.execute(query)
+			return cursor.fetchall()
 
 	# Gets the list of pairs (player, total_score) for the passed category
 	def getScoreList(self, mapType, timelimit):
-		with sqlite3.connect(self.db_name) as db:
+		with psycopg2.connect(self.db_info) as db:
 			cursor = db.cursor()
 			query = '''
 				SELECT p.name, SUM(pm.total_score) AS score
@@ -261,12 +265,13 @@ class DBInterface:
 				GROUP BY p.id_player, p.name
 				ORDER BY score DESC;
 			'''.format(map = mapType, timelimit = timelimit)
-			return cursor.execute(query).fetchall()
+			cursor.execute(query)
+			return cursor.fetchall()
 
 	# Gets a list of at most 3 pairs (player, total_score) containing the
 	# records for the passed category
 	def getLeaderbords(self, mapType, timelimit):
-		with sqlite3.connect(self.db_name) as db:
+		with psycopg2.connect(self.db_info) as db:
 			cursor = db.cursor()
 			query = '''
 				SELECT p.name, MAX(pm.total_score) AS score
@@ -279,4 +284,5 @@ class DBInterface:
 				ORDER BY score DESC
 				LIMIT 3;
 			'''.format(map = mapType, timelimit = timelimit)
-			return cursor.execute(query).fetchall()
+			cursor.execute(query)
+			return cursor.fetchall()
