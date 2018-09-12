@@ -151,9 +151,9 @@ class DBInterface:
 			INSERT INTO playersMatches (id_player, id_match, total_score)
 			VALUES (%(id_player)s, %(id_match)s, %(total_score)s);
 		''', {
-			'id_player' = id_player,
-			'id_match' = id_match,
-			'total_score' = total_score
+			'id_player': id_player,
+			'id_match': id_match,
+			'total_score': total_score
 		})
 		db.commit()
 		db.close()
@@ -168,8 +168,8 @@ class DBInterface:
 				WHERE id_player = %(id_player)s AND id_match = %(id_match)s
 			'''
 			cursor.execute(query, {
-				'id_player' = id_player,
-				'id_match' = id_match
+				'id_player': id_player,
+				'id_match': id_match
 			})
 			fetches = cursor.fetchall()
 			if len(fetches) == 0:
@@ -210,7 +210,7 @@ class DBInterface:
 				WHERE m.map = %(map)s
 					AND m.timelimit = %(timelimit)s;
 			'''
-			cursor.execute(query, { 'map' = mapType, 'timelimit' = timelimit })
+			cursor.execute(query, { 'map': mapType, 'timelimit': timelimit })
 			return map(lambda x: x[0], cursor.fetchall())
 
 
@@ -254,7 +254,7 @@ class DBInterface:
 				GROUP BY p.id_player, p.name
 				ORDER BY score DESC;
 			'''
-			cursor.execute(query, { 'match_id' = match_id })
+			cursor.execute(query, { 'match_id': match_id })
 			return cursor.fetchall()
 
 	# Gets the list of pairs (player, total_score) for the passed category
@@ -271,7 +271,7 @@ class DBInterface:
 				GROUP BY p.id_player, p.name
 				ORDER BY score DESC;
 			'''
-			cursor.execute(query, { 'map' = mapType, 'timelimit' = timelimit })
+			cursor.execute(query, { 'map': mapType, 'timelimit': timelimit })
 			return cursor.fetchall()
 
 	# Gets a list of at most 3 pairs (player, total_score) containing the
@@ -290,5 +290,5 @@ class DBInterface:
 				ORDER BY score DESC
 				LIMIT 3;
 			'''
-			cursor.execute(query, { 'map' = mapType, 'timelimit' = timelimit })
+			cursor.execute(query, { 'map': mapType, 'timelimit': timelimit })
 			return cursor.fetchall()
