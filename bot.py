@@ -13,10 +13,10 @@ GEOGUESSR_RE = re.compile(GEOGUESSR_URL + '(\w*)')
 DATA_JSON_RE = re.compile('<script type="text/javascript">\s*window.apiModel =\s*(.*?);\s*</script>', flags=re.S)
 
 # Useful global constants
-updater = telegram.ext.Updater(token=config.TOKEN)
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-					level=logging.DEBUG,
-					filename=config.LOG_FILE)
+updater = telegram.ext.Updater(token = config.TOKEN)
+logging.basicConfig(format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+					level = config.LOG_LEVEL,
+					filename = config.LOG_FILE)
 db = db_interface.DBInterface(config.DB_LOGIN_INFO)
 
 # Handler for '/start' command
