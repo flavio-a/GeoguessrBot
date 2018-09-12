@@ -116,19 +116,15 @@ class DBInterface:
 
 	# Gets the ID of a match from its link. Type of map and time limit are
 	# optional
-	def getMatchId(self, link, mapType, timelimit):
+	def getMatchId(self, link):
 		with psycopg2.connect(self.db_info) as db:
 			cursor = db.cursor()
 			query = '''
 				SELECT id_match
 				FROM matches
-				WHERE link = '{link}'
-			'''.format(link = link)
-			if mapType:
-				query += "AND map = '{}'".format(mapType)
-			if timelimit:
-				query += 'AND timelimit = {}'.format(timelimit)
-			cursor.execute(query)
+				WHERE link = %(link)s
+			'''
+			cursor.execute(query, { 'link': link })
 			fetches = cursor.fetchall()
 			if len(fetches) == 0:
 				return None
@@ -153,27 +149,28 @@ class DBInterface:
 		cursor = db.cursor()
 		cursor.execute('''
 			INSERT INTO playersMatches (id_player, id_match, total_score)
-			VALUES ({id_player}, {id_match}, {total_score});
-		'''.format(
-			id_player = id_player,
-			id_match = id_match,
-			total_score = total_score
-		))
+			VALUES (%(id_player)s, %(id_match)s, %(total_score)s);
+		''', {
+			'id_player' = id_player,
+			'id_match' = id_match,
+			'total_score' = total_score
+		})
 		db.commit()
 		db.close()
 
 	# Gets the ID of a player from name and surname
-	def getPlayerMatchId(self, id_player, id_match, total_score):
+	def getPlayerMatchId(self, id_player, id_match):
 		with psycopg2.connect(self.db_info) as db:
 			cursor = db.cursor()
 			query = '''
 				SELECT id_playerMatches
 				FROM playersMatches
-				WHERE id_player = {id_player} AND id_match = {id_match}
-			'''.format(id_player = id_player, id_match = id_match)
-			if total_score:
-				query += "AND total_score = '{}'".format(total_score)
-			cursor.execute(query)
+				WHERE id_player = %(id_player)s AND id_match = %(id_match)s
+			'''
+			cursor.execute(query, {
+				'id_player' = id_player,
+				'id_match' = id_match
+			})
 			fetches = cursor.fetchall()
 			if len(fetches) == 0:
 				return None
@@ -186,11 +183,11 @@ class DBInterface:
 	# Given name and surname, returns the player's ID. If they don't exist,
 	# creates them
 	def findOrCreatePlayerMatch(self, id_player, id_match, total_score):
-		playerMatch_id = self.getPlayerMatchId(id_player, id_match, total_score)
+		playerMatch_id = self.getPlayerMatchId(id_player, id_match)
 		if playerMatch_id:
 			return playerMatch_id
 		self.createPlayerMatch(id_player, id_match, total_score)
-		return self.getPlayerMatchId(id_player, id_match, total_score)
+		return self.getPlayerMatchId(id_player, id_match)
 
 	# Gets the list of saved links
 	def getLinksList(self):
@@ -210,10 +207,10 @@ class DBInterface:
 			query = '''
 				SELECT m.id_match
 				FROM matches m
-				WHERE m.map = '{map}'
-					AND m.timelimit = {timelimit};
-			'''.format(map = mapType, timelimit = timelimit)
-			cursor.execute(query)
+				WHERE m.map = %(map)s
+					AND m.timelimit = %(timelimit)s;
+			'''
+			cursor.execute(query, { 'map' = mapType, 'timelimit' = timelimit })
 			return map(lambda x: x[0], cursor.fetchall())
 
 
@@ -253,11 +250,11 @@ class DBInterface:
 				SELECT p.name, SUM(pm.total_score) AS score
 				FROM playersMatches pm, players p
 				WHERE p.id_player = pm.id_player
-					AND pm.id_match = {match_id}
+					AND pm.id_match = %(match_id)s
 				GROUP BY p.id_player, p.name
 				ORDER BY score DESC;
-			'''.format(match_id = match_id)
-			cursor.execute(query)
+			'''
+			cursor.execute(query, { 'match_id' = match_id })
 			return cursor.fetchall()
 
 	# Gets the list of pairs (player, total_score) for the passed category
@@ -269,12 +266,12 @@ class DBInterface:
 				FROM playersMatches pm, players p, matches m
 				WHERE p.id_player = pm.id_player
 					AND pm.id_match = m.id_match
-					AND m.map = '{map}'
-					AND m.timelimit = {timelimit}
+					AND m.map = %(map)s
+					AND m.timelimit = %(timelimit)s
 				GROUP BY p.id_player, p.name
 				ORDER BY score DESC;
-			'''.format(map = mapType, timelimit = timelimit)
-			cursor.execute(query)
+			'''
+			cursor.execute(query, { 'map' = mapType, 'timelimit' = timelimit })
 			return cursor.fetchall()
 
 	# Gets a list of at most 3 pairs (player, total_score) containing the
@@ -287,11 +284,11 @@ class DBInterface:
 				FROM playersMatches pm, players p, matches m
 				WHERE p.id_player = pm.id_player
 					AND pm.id_match = m.id_match
-					AND m.map = '{map}'
-					AND m.timelimit = {timelimit}
+					AND m.map = %(map)s
+					AND m.timelimit = %(timelimit)s
 				GROUP BY p.id_player, p.name
 				ORDER BY score DESC
 				LIMIT 3;
-			'''.format(map = mapType, timelimit = timelimit)
-			cursor.execute(query)
+			'''
+			cursor.execute(query, { 'map' = mapType, 'timelimit' = timelimit })
 			return cursor.fetchall()

@@ -3,5 +3,6 @@ __pycache__/
 *.db
 pages/*
 *.log
+*~
 
 config.py

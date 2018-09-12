@@ -16,7 +16,7 @@ DATA_JSON_RE = re.compile('<script type="text/javascript">\s*window.apiModel =\s
 updater = telegram.ext.Updater(token=config.TOKEN)
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
 					level=logging.DEBUG,
-					filename='geoguesser.log')
+					filename=config.LOG_FILE)
 db = db_interface.DBInterface(config.DB_LOGIN_INFO)
 
 # Handler for '/start' command
