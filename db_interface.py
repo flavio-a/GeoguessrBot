@@ -67,8 +67,8 @@ class DBInterface:
 		cursor = db.cursor()
 		cursor.execute('''
 			INSERT INTO players (name)
-			VALUES ('{name}');
-		'''.format(name = name.lower()))
+			VALUES (%(name)s);
+		''', { 'name': name.lower() })
 		db.commit()
 		db.close()
 
@@ -79,9 +79,9 @@ class DBInterface:
 			query = '''
 				SELECT id_player
 				FROM players
-				WHERE name = '{name}'
-			'''.format(name = name.lower())
-			cursor.execute(query)
+				WHERE name = %(name)s
+			'''
+			cursor.execute(query, { 'name': name.lower() })
 			fetches = cursor.fetchall()
 			if len(fetches) == 0:
 				return None
@@ -103,14 +103,14 @@ class DBInterface:
 		return self.getPlayerId(name)
 
 
-	# Adds a match to the DB
-	def createMatch(self, link, mapType, timelimit):
+	# Adds a match without a category (that is, map and timelimit)
+	def addEmptyMatch(self, link):
 		db = psycopg2.connect(self.db_info)
 		cursor = db.cursor()
 		cursor.execute('''
-			INSERT INTO matches (link, map, timelimit)
-			VALUES ('{link}', '{map}', {timelimit});
-		'''.format(link = link, map = mapType, timelimit = timelimit))
+			INSERT INTO matches (link)
+			VALUES (%(link)s);
+		''', { 'link': link })
 		db.commit()
 		db.close()
 
@@ -137,14 +137,14 @@ class DBInterface:
 				raise IndexError('Too many matches found with the passed link')
 			return fetches[0][0]
 
-	# Given link and possibly mapType and timelimit, returns the match's ID. If
-	# it doesn't exist, creates it
-	def findOrCreateMatch(self, link, mapType, timelimit):
-		match_id = self.getMatchId(link, mapType, timelimit)
+	# Given link, returns the match's ID. If it doesn't exist, creates it
+	# without category
+	def findOrCreateMatch(self):
+		match_id = self.getMatchId(link)
 		if match_id:
 			return match_id
-		self.createMatch(link, mapType, timelimit)
-		return self.getMatchId(link, mapType, timelimit)
+		self.addEmptyMatch(link)
+		return self.getMatchId(link)
 
 
 	# Adds a playerMatch to the DB
@@ -221,11 +221,19 @@ class DBInterface:
 	# parameter is the match's link, the second is the json from the page
 	# parsed into a Python dict
 	def updateMatch(self, link, json):
-		id_match = self.findOrCreateMatch(
-							link,
-							json['mapSlug'],
-							json['roundTimeLimit']
-						)
+		id_match = self.findOrCreateMatch(link)
+		# Updates category
+			cursor = db.cursor()
+			cursor.execute('''
+				UPDATE matches
+				SET map = %(map)s, timelimit = %(timelimit)s
+				WHERE link = %(link)s;
+			''', {
+				'link': link,
+				'map': json['mapSlug'],
+				'timelimit': json['roundTimeLimit']
+			})
+		# Possibly creates playermatch for each player
 		for player in json['hiScores']:
 			id_player = self.findOrCreatePlayer(player['playerName'])
 			if id_player is not None:

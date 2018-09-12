@@ -15,7 +15,8 @@ DATA_JSON_RE = re.compile('<script type="text/javascript">\s*window.apiModel =\s
 # Useful global constants
 updater = telegram.ext.Updater(token=config.TOKEN)
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-					level=logging.INFO)
+					level=logging.DEBUG,
+					filename='geoguesser.log')
 db = db_interface.DBInterface(config.DB_LOGIN_INFO)
 
 # Handler for '/start' command
@@ -42,14 +43,23 @@ def leaderboards(bot, update, args):
 # Given an URL, refresh the corresponding match in the DB, possibly creating it
 def refreshMatch(fullurl, link):
 	req = urllib.request.Request(fullurl)
-	html_source = urllib.request.urlopen(req).read().decode("utf-8")
-	match_data = DATA_JSON_RE.search(html_source).group(1)
-	# with open('pages/data.json', 'a') as f:
-	# 	f.write(match_data + '\n')
-	db.updateMatch(link, json.loads(match_data))
+	try:
+		html_source = urllib.request.urlopen(req).read().decode("utf-8")
+	except urllib.error.HTTPError as e:
+		logging.info('Refreshing match ' + link, e, ': adding match with out info')
+		db.findOrCreateMatch(link)
+	else:
+		match_data = DATA_JSON_RE.search(html_source).group(1)
+		db.updateMatch(link, json.loads(match_data))
 
 # Handler for '/refresh' command
 def refresh(bot, update, args):
+	if len(args) == 0:
+		bot.send_message(
+			chat_id=update.message.chat_id,
+			text='Argument needed!'
+		)
+		return
 	if args[0].lower() == 'all':
 		links = db.getLinksList()
 	else:
@@ -57,7 +67,7 @@ def refresh(bot, update, args):
 	base_url = GEOGUESSR_URL.replace('/challenge/', '/results/')
 	for link in links:
 		refreshMatch(base_url + link, link)
-		bot.send_message(chat_id=update.message.chat_id, text='Refreshed ' + base_url + link)
+		bot.send_message(chat_id=update.message.chat_id, text='Refreshed ' + GEOGUESSR_URL + link)
 
 
 # Handler fot '/whitelist' command
