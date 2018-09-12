@@ -139,7 +139,7 @@ class DBInterface:
 
 	# Given link, returns the match's ID. If it doesn't exist, creates it
 	# without category
-	def findOrCreateMatch(self):
+	def findOrCreateMatch(self, link):
 		match_id = self.getMatchId(link)
 		if match_id:
 			return match_id
@@ -223,6 +223,7 @@ class DBInterface:
 	def updateMatch(self, link, json):
 		id_match = self.findOrCreateMatch(link)
 		# Updates category
+		with psycopg2.connect(self.db_info) as db:
 			cursor = db.cursor()
 			cursor.execute('''
 				UPDATE matches
