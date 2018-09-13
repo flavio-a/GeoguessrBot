@@ -8,8 +8,8 @@ import db_interface
 import config
 
 # Regexes definition
-GEOGUESSR_URL = 'https://geoguessr.com/challenge/'
-GEOGUESSR_RE = re.compile(GEOGUESSR_URL + '(\w*)')
+GEOGUESSR_URL = 'https//geoguessr.com/'
+GEOGUESSR_RE = re.compile('(?:https?://)(?:www\.)?geoguessr.com/challenge/(\w*)')
 DATA_JSON_RE = re.compile('<script type="text/javascript">\s*window.apiModel =\s*(.*?);\s*</script>', flags=re.S)
 
 # Useful global constants
@@ -42,13 +42,15 @@ def leaderboards(bot, update, args):
 
 # Given an URL, refresh the corresponding match in the DB, possibly creating it
 def refreshMatch(fullurl, link):
+	logging.info('Asked refresh for link ' + link)
 	req = urllib.request.Request(fullurl)
 	try:
 		html_source = urllib.request.urlopen(req).read().decode("utf-8")
 	except urllib.error.HTTPError as e:
-		logging.info('Refreshing match ' + link, e, ': adding match with out info')
+		logging.info(e, ': adding match with out info')
 		db.findOrCreateMatch(link)
 	else:
+		logging.info('Match refreshed succesfully')
 		match_data = DATA_JSON_RE.search(html_source).group(1)
 		db.updateMatch(link, json.loads(match_data))
 
@@ -64,10 +66,10 @@ def refresh(bot, update, args):
 		links = db.getLinksList()
 	else:
 		links = [GEOGUESSR_RE.search(args[0]).group(1)]
-	base_url = GEOGUESSR_URL.replace('/challenge/', '/results/')
+	base_url = GEOGUESSR_URL + 'results/'
 	for link in links:
 		refreshMatch(base_url + link, link)
-		bot.send_message(chat_id=update.message.chat_id, text='Refreshed ' + GEOGUESSR_URL + link)
+		bot.send_message(chat_id=update.message.chat_id, text='Refreshed ' + GEOGUESSR_URL 'challenge/' + link)
 
 
 # Handler fot '/whitelist' command
