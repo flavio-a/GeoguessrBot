@@ -29,7 +29,7 @@ class DBInterface:
 			)
 		''')
 		cursor.execute('''
-			CREATE TABLE IF NOT EXISTS playersMatches (
+			CREATE TABLE IF NOT EXISTS playerMatches (
 				id_playerMatches serial NOT NULL PRIMARY KEY,
 				id_player INTEGER REFERENCES players(id_player),
 				id_match INTEGER REFERENCES matches(id_match),
@@ -148,7 +148,7 @@ class DBInterface:
 		db = psycopg2.connect(self.db_info)
 		cursor = db.cursor()
 		cursor.execute('''
-			INSERT INTO playersMatches (id_player, id_match, total_score)
+			INSERT INTO playerMatches (id_player, id_match, total_score)
 			VALUES (%(id_player)s, %(id_match)s, %(total_score)s);
 		''', {
 			'id_player': id_player,
@@ -164,7 +164,7 @@ class DBInterface:
 			cursor = db.cursor()
 			query = '''
 				SELECT id_playerMatches
-				FROM playersMatches
+				FROM playerMatches
 				WHERE id_player = %(id_player)s AND id_match = %(id_match)s
 			'''
 			cursor.execute(query, {
@@ -248,7 +248,7 @@ class DBInterface:
 			cursor = db.cursor()
 			query = '''
 				SELECT p.name, SUM(pm.total_score) AS score
-				FROM playersMatches pm, players p
+				FROM playerMatches pm, players p
 				WHERE p.id_player = pm.id_player
 					AND pm.id_match = %(match_id)s
 				GROUP BY p.id_player, p.name
@@ -263,7 +263,7 @@ class DBInterface:
 			cursor = db.cursor()
 			query = '''
 				SELECT p.name, SUM(pm.total_score) AS score
-				FROM playersMatches pm, players p, matches m
+				FROM playerMatches pm, players p, matches m
 				WHERE p.id_player = pm.id_player
 					AND pm.id_match = m.id_match
 					AND m.map = %(map)s
@@ -281,7 +281,7 @@ class DBInterface:
 			cursor = db.cursor()
 			query = '''
 				SELECT p.name, MAX(pm.total_score) AS score
-				FROM playersMatches pm, players p, matches m
+				FROM playerMatches pm, players p, matches m
 				WHERE p.id_player = pm.id_player
 					AND pm.id_match = m.id_match
 					AND m.map = %(map)s

@@ -8,7 +8,7 @@ import db_interface
 import config
 
 # Regexes definition
-GEOGUESSR_URL = 'https//geoguessr.com/'
+GEOGUESSR_URL = 'https://geoguessr.com/'
 GEOGUESSR_RE = re.compile('(?:https?://)(?:www\.)?geoguessr.com/challenge/(\w*)')
 DATA_JSON_RE = re.compile('<script type="text/javascript">\s*window.apiModel =\s*(.*?);\s*</script>', flags=re.S)
 
@@ -43,6 +43,7 @@ def leaderboards(bot, update, args):
 # Given an URL, refresh the corresponding match in the DB, possibly creating it
 def refreshMatch(fullurl, link):
 	logging.info('Asked refresh for link ' + link)
+	logging.info('Full URL: ' + fullurl)
 	req = urllib.request.Request(fullurl)
 	try:
 		html_source = urllib.request.urlopen(req).read().decode("utf-8")
