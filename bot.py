@@ -3,6 +3,7 @@ import logging
 import re
 import urllib, urllib.request
 import json
+import operator
 
 import db_interface
 import config
@@ -48,7 +49,7 @@ def refreshMatch(fullurl, link):
 	try:
 		html_source = urllib.request.urlopen(req).read().decode("utf-8")
 	except urllib.error.HTTPError as e:
-		logging.info(e, ': adding match with out info')
+		logging.info(str(e) + ': adding match with out info')
 		db.findOrCreateMatch(link)
 	else:
 		logging.info('Match refreshed succesfully')
@@ -101,25 +102,31 @@ def getPoints(scores):
 		points.append((scores[i][0], scores[i][1] / max_score + bonus))
 	return points
 
-# Returns a list of couples (player, points) sorted by points, containing the
-# total point for each people in the passed category
+# Returns a pair of list of tuples: [(player, points)], [(player, avgPoints)]
+# sorted by points, containing the total point and the average points per match
+# for each people in the passed category
 def calcPoints(mapType, timelimit):
-	# print('calcPoints started')
 	matches_list = db.getMatchesList(mapType, timelimit)
 	total_scores = {}
 	for match_id in matches_list:
-		# print('Match ', match_id)
 		scores = getPoints(db.getMatchResults(match_id))
 		for p in scores:
 			if p[0] in total_scores:
-				total_scores[p[0]] += p[1]
+				total_scores[p[0]] = tuple(map(
+					operator.add,
+					total_scores[p[0]],
+					(p[1], 1)
+				))
 			else:
-				total_scores[p[0]] = p[1]
-	result = []
+				total_scores[p[0]] = (p[1], 1)
+	result1 = []
+	result2 = []
 	for player, points in total_scores.items():
-		result.append((player, points))
-	result.sort(reverse = True, key = lambda x: (x[1], x[0]))
-	return result
+		result1.append((player, points[0]))
+		result2.append((player, points[0] / points[1]))
+	result1.sort(reverse = True, key = lambda x: (x[1], x[0]))
+	result2.sort(reverse = True, key = lambda x: (x[1], x[0]))
+	return result1, result2
 
 # Handler for '/rank' command
 def rank(bot, update, args):
@@ -127,11 +134,16 @@ def rank(bot, update, args):
 	mapType = args[0].lower() if len(args) > 0 else 'world'
 	timelimit = args[1] if len(args) > 1 else 60
 	text = "Rank up to date for category " + mapType + ", " + str(timelimit) + "s:\n* "
-	points = calcPoints(mapType, timelimit)
-	# print(points)
+	points, avgPoints = calcPoints(mapType, timelimit)
+	text += 'Total points:\n'
 	text += "\n* ".join(map(
 		lambda t: "{0:.2f}, ".format(t[1]) + t[0],
 		points
+	))
+	text += '\n\nAverage points:\n'
+	text += "\n* ".join(map(
+		lambda t: "{0:.2f}, ".format(t[1]) + t[0],
+		avgPoints
 	))
 	bot.send_message(
 		chat_id = update.message.chat_id,
