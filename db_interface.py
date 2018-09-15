@@ -189,6 +189,7 @@ class DBInterface:
 		self.createPlayerMatch(id_player, id_match, total_score)
 		return self.getPlayerMatchId(id_player, id_match)
 
+
 	# Gets the list of saved links
 	def getLinksList(self):
 		with psycopg2.connect(self.db_info) as db:
@@ -211,6 +212,24 @@ class DBInterface:
 					AND m.timelimit = %(timelimit)s;
 			'''
 			cursor.execute(query, { 'map': mapType, 'timelimit': timelimit })
+			return map(lambda x: x[0], cursor.fetchall())
+
+	# Gets the list of links of matches that the player 'name' hasn't played
+	def getUnplayedMatchesList(self, name):
+		with psycopg2.connect(self.db_info) as db:
+			cursor = db.cursor()
+			query = '''
+				SELECT m.link
+				FROM matches m
+				WHERE m.id_match NOT IN (
+						SELECT m_id_match
+						FROM matches m, players p, playermatches pm
+						WHERE p.name = %(name)s
+							AND p.id_player = pm.id_player
+							AND pm.id_match = m.id_match
+					);
+			'''
+			cursor.execute(query, { 'name': name })
 			return map(lambda x: x[0], cursor.fetchall())
 
 

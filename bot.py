@@ -43,8 +43,8 @@ def leaderboards(bot, update, args):
 
 # Given an URL, refresh the corresponding match in the DB, possibly creating it
 def refreshMatch(fullurl, link):
-	logging.info('Asked refresh for link ' + link)
-	logging.info('Full URL: ' + fullurl)
+	logging.debug('Asked refresh for link ' + link)
+	logging.debug('Full URL: ' + fullurl)
 	req = urllib.request.Request(fullurl)
 	try:
 		html_source = urllib.request.urlopen(req).read().decode("utf-8")
@@ -52,7 +52,7 @@ def refreshMatch(fullurl, link):
 		logging.info(str(e) + ': adding match with out info')
 		db.findOrCreateMatch(link)
 	else:
-		logging.info('Match refreshed succesfully')
+		logging.debug('Match refreshed succesfully')
 		match_data = DATA_JSON_RE.search(html_source).group(1)
 		db.updateMatch(link, json.loads(match_data))
 
@@ -133,17 +133,37 @@ def rank(bot, update, args):
 	# print('Starting rank calc')
 	mapType = args[0].lower() if len(args) > 0 else 'world'
 	timelimit = args[1] if len(args) > 1 else 60
-	text = "Rank up to date for category " + mapType + ", " + str(timelimit) + "s:\n* "
+	text = "Rank up to date for category " + mapType + ", " + str(timelimit) + "s:\n"
 	points, avgPoints = calcPoints(mapType, timelimit)
-	text += 'Total points:\n'
+	text += 'Total points:\n* '
 	text += "\n* ".join(map(
 		lambda t: "{0:.2f}, ".format(t[1]) + t[0],
 		points
 	))
-	text += '\n\nAverage points:\n'
+	text += '\n\nAverage points:\n* '
 	text += "\n* ".join(map(
 		lambda t: "{0:.2f}, ".format(t[1]) + t[0],
 		avgPoints
+	))
+	bot.send_message(
+		chat_id = update.message.chat_id,
+		text = text
+	)
+
+
+# Handler for '/toPlay' command
+def toPlay(bot, update, args):
+	if len(args) == 0:
+		bot.send_message(
+			chat_id=update.message.chat_id,
+			text='You should give a player name'
+		)
+		return
+	name = args[0].lower()
+	text = "Matches player " + name + " haven't played yet:\n* "
+	text += "\n* ".join(map(
+		lambda t: GEOGUESSR_URL + 'challenge/' + t,
+		db.getUnplayedMatchesList(name)
 	))
 	bot.send_message(
 		chat_id = update.message.chat_id,
@@ -168,6 +188,7 @@ updater.dispatcher.add_handler(telegram.ext.CommandHandler('rank', rank, pass_ar
 updater.dispatcher.add_handler(telegram.ext.CommandHandler('leaderboards', leaderboards, pass_args=True))
 updater.dispatcher.add_handler(telegram.ext.CommandHandler('refresh', refresh, pass_args=True))
 updater.dispatcher.add_handler(telegram.ext.CommandHandler('whitelist', whitelist, pass_args=True))
+updater.dispatcher.add_handler(telegram.ext.CommandHandler('toPlay', toPlay, pass_args=True))
 updater.dispatcher.add_handler(telegram.ext.MessageHandler(
 		telegram.ext.Filters.text,
 		processMessage
