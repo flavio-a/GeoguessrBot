@@ -41,8 +41,9 @@ def leaderboards(bot, update, args):
 	)
 
 
-# Given an URL, refresh the corresponding match in the DB, possibly creating it
-def refreshMatch(fullurl, link):
+# Given a link, refresh the corresponding match in the DB, possibly creating it
+def refreshMatch(link):
+	fullurl = GEOGUESSR_URL + 'results/' + link
 	logging.debug('Asked refresh for link ' + link)
 	logging.debug('Full URL: ' + fullurl)
 	req = urllib.request.Request(fullurl)
@@ -68,9 +69,8 @@ def refresh(bot, update, args):
 		links = db.getLinksList()
 	else:
 		links = [GEOGUESSR_RE.search(args[0]).group(1)]
-	base_url = GEOGUESSR_URL + 'results/'
 	for link in links:
-		refreshMatch(base_url + link, link)
+		refreshMatch(link)
 		bot.send_message(chat_id=update.message.chat_id, text='Refreshed ' + GEOGUESSR_URL + 'challenge/' + link)
 
 
@@ -151,7 +151,7 @@ def rank(bot, update, args):
 	)
 
 
-# Handler for '/toPlay' command
+# Handler for '/toplay' command
 def toPlay(bot, update, args):
 	if len(args) == 0:
 		bot.send_message(
@@ -159,7 +159,7 @@ def toPlay(bot, update, args):
 			text='You should give a player name'
 		)
 		return
-	name = args[0].lower()
+	name = ' '.join(args).lower()
 	text = "Matches player " + name + " haven't played yet:\n* "
 	text += "\n* ".join(map(
 		lambda t: GEOGUESSR_URL + 'challenge/' + t,
@@ -182,17 +182,20 @@ def processMessage(bot, update):
 		bot.send_message(chat_id=update.message.chat_id, text='Trovato link di GeoGuessr')
 
 
-# Binding handlers
-updater.dispatcher.add_handler(telegram.ext.CommandHandler('start', start))
-updater.dispatcher.add_handler(telegram.ext.CommandHandler('rank', rank, pass_args=True))
-updater.dispatcher.add_handler(telegram.ext.CommandHandler('leaderboards', leaderboards, pass_args=True))
-updater.dispatcher.add_handler(telegram.ext.CommandHandler('refresh', refresh, pass_args=True))
-updater.dispatcher.add_handler(telegram.ext.CommandHandler('whitelist', whitelist, pass_args=True))
-updater.dispatcher.add_handler(telegram.ext.CommandHandler('toPlay', toPlay, pass_args=True))
-updater.dispatcher.add_handler(telegram.ext.MessageHandler(
-		telegram.ext.Filters.text,
-		processMessage
-	))
+if __name__ == "__main__":
+	# Binding handlers
+	updater.dispatcher.add_handler(telegram.ext.CommandHandler('start', start))
+	updater.dispatcher.add_handler(telegram.ext.CommandHandler('rank', rank, pass_args=True))
+	updater.dispatcher.add_handler(telegram.ext.CommandHandler('leaderboards', leaderboards, pass_args=True))
+	updater.dispatcher.add_handler(telegram.ext.CommandHandler('refresh', refresh, pass_args=True))
+	updater.dispatcher.add_handler(telegram.ext.CommandHandler('whitelist', whitelist, pass_args=True))
+	updater.dispatcher.add_handler(telegram.ext.CommandHandler('toplay', toPlay, pass_args=True))
+	updater.dispatcher.add_handler(telegram.ext.MessageHandler(
+			telegram.ext.Filters.text,
+			processMessage
+		))
 
-# Start polling
-updater.start_polling()
+	# Start polling
+	print('Start polling')
+	logging.debug('Start polling')
+	updater.start_polling()

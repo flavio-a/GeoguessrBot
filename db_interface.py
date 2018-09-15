@@ -222,7 +222,7 @@ class DBInterface:
 				SELECT m.link
 				FROM matches m
 				WHERE m.id_match NOT IN (
-						SELECT m_id_match
+						SELECT m.id_match
 						FROM matches m, players p, playermatches pm
 						WHERE p.name = %(name)s
 							AND p.id_player = pm.id_player
