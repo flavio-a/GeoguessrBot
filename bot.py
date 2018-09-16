@@ -175,10 +175,7 @@ def toPlay(bot, update, args):
 def processMessage(bot, update):
 	match = GEOGUESSR_RE.search(update.message.text)
 	if match is not None:
-		refreshMatch(
-			match.group(0).replace('/challenge/', '/results/'),
-			match.group(1)
-		)
+		refreshMatch(match.group(1))
 		bot.send_message(chat_id=update.message.chat_id, text='Trovato link di GeoGuessr')
 
 
