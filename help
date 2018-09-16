@@ -1,0 +1,16 @@
+Welcome to Geugessr_bot!
+Firstly use /whitelist to add your name at the whitelist, so when you play the matches the bot will record your score and your stats. Just type /whitelist and then the nickname you use in Geoguessr
+	/whitelist Pinco Pallo
+Ranking and stats depend on the category you play (which means map and seconds per round), if it is not specified, the bot will show the category 'world 60 seconds'
+	/rank
+	/rank USA 30
+Rank is calculated adding the point earned in each match using the followiong formula
+	yourpoints = yourscore/winnerscore
+If you are one of the first three, it is added 1/2 - 1/n
+where n is the number of people who have3 played the match.
+/toplay plus your nickname allow you to see which matches you haven't played yet.
+	/toplay Pinco Pallo
+/leaderboards plus the category shows you the best score ever made in a match.
+	/leaderboards world 60
+
+
