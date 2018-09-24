@@ -1,4 +1,36 @@
 import psycopg2
+import sqlalchemy
+from sqlalchemy import Column
+
+Base = sqlalchemy.ext.declarative.declarative_base()
+
+# Player class (mapped to db table players)
+class Player(Base):
+	__tablename__ = 'players'
+
+	id = Column(sqlalchemy.Integer, primary_key = True, nullable = False)
+	name = Column(sqlalchemy.String(60), unique = True)
+
+# Matches class (mapped t db table matches)
+class Matches(Base):
+	__tablename__ = 'matches'
+
+	id = Column(sqlalchemy.Integer, primary_key = True, nullable = False)
+	link = Column(sqlalchemy.String(32), unique = True)
+	map = Column(sqlalchemy.String(50))
+	timelimit = Column(sqlalchemy.Integer, sqlalchemy.CheckConstraint('timelimit > 0'))
+	addtime = Column(sqlalchemy.DateTime)
+
+# PlayerMatches class (mapped to db table playerMatches)
+class PlayerMatches(Base):
+	__tablename__ = 'playerMatches'
+# CREATE TABLE IF NOT EXISTS playerMatches (
+# 	id_playerMatches serial NOT NULL PRIMARY KEY,
+# 	id_player INTEGER REFERENCES players(id_player),
+# 	id_match INTEGER REFERENCES matches(id_match),
+# 	total_score INTEGER,
+# 	UNIQUE(id_player, id_match)
+# )
 
 # Interface to the DB
 class DBInterface:
@@ -207,17 +239,27 @@ class DBInterface:
 				cursor.execute(query)
 			return map(lambda x: x[0], cursor.fetchall())
 
-	# Gets the list of saved id_match for the passed category
-	def getMatchesList(self, mapType, timelimit):
+	# Gets the list of saved id_match for the passed category. If a datetime is
+	# passed, returns only matches more recent than that date
+	def getMatchesList(self, mapType, timelimit, since):
 		with psycopg2.connect(self.db_info) as db:
 			cursor = db.cursor()
 			query = '''
 				SELECT m.id_match
 				FROM matches m
 				WHERE m.map = %(map)s
-					AND m.timelimit = %(timelimit)s;
+					AND m.timelimit = %(timelimit)s
 			'''
-			cursor.execute(query, { 'map': mapType, 'timelimit': timelimit })
+			if since is not None:
+				query += 'AND WHERE m.addtime > %(since)s;'
+				cursor.execute(query, {
+					'map': mapType,
+					'timelimit': timelimit,
+					'since': since
+				})
+			else:
+				query += ';'
+				cursor.execute(query, { 'map': mapType, 'timelimit': timelimit })
 			return map(lambda x: x[0], cursor.fetchall())
 
 	# Gets the list of links of matches that the player 'name' hasn't played
