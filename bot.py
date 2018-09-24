@@ -4,6 +4,7 @@ import re
 import urllib, urllib.request
 import json
 import operator
+import datetime
 
 import db_interface
 import config
@@ -66,7 +67,11 @@ def refresh(bot, update, args):
 		)
 		return
 	if args[0].lower() == 'all':
+		logging.debug('REFRESH: getting all links')
 		links = db.getLinksList()
+	elif args[0].lower() == 'recent':
+		logging.debug('REFRESH: getting only recent links')
+		links = db.getLinksList(datetime.datetime.now() - datetime.timedelta(days=14))
 	else:
 		links = [GEOGUESSR_RE.search(args[0]).group(1)]
 	for link in links:
