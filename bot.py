@@ -32,10 +32,10 @@ def start(bot, update):
 # Handler for '/help' command
 def help(bot, update):
 	with open('help', 'r') as help_file:
-	bot.send_message(
-		chat_id = update.message.chat_id,
-		text = help_file.read()
-	)
+		bot.send_message(
+			chat_id = update.message.chat_id,
+			text = help_file.read()
+		)
 
 # Handler for '/leaderboards' command
 def leaderboards(bot, update, args):
