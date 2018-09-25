@@ -1,6 +1,7 @@
 import psycopg2
 import sqlalchemy
 from sqlalchemy import Column
+import datetime
 
 Base = sqlalchemy.ext.declarative.declarative_base()
 
@@ -12,30 +13,42 @@ class Player(Base):
 	name = Column(sqlalchemy.String(60), unique = True)
 
 # Matches class (mapped t db table matches)
-class Matches(Base):
+class Match(Base):
 	__tablename__ = 'matches'
 
 	id = Column(sqlalchemy.Integer, primary_key = True, nullable = False)
 	link = Column(sqlalchemy.String(32), unique = True)
 	map = Column(sqlalchemy.String(50))
 	timelimit = Column(sqlalchemy.Integer, sqlalchemy.CheckConstraint('timelimit > 0'))
-	addtime = Column(sqlalchemy.DateTime)
+	addtime = Column(sqlalchemy.DateTime, default = datetime.datetime.utcnow)
 
 # PlayerMatches class (mapped to db table playerMatches)
-class PlayerMatches(Base):
+class PlayerMatch(Base):
 	__tablename__ = 'playerMatches'
-# CREATE TABLE IF NOT EXISTS playerMatches (
-# 	id_playerMatches serial NOT NULL PRIMARY KEY,
-# 	id_player INTEGER REFERENCES players(id_player),
-# 	id_match INTEGER REFERENCES matches(id_match),
-# 	total_score INTEGER,
-# 	UNIQUE(id_player, id_match)
-# )
+
+	id = Column(sqlalchemy.Integer, primary_key = True, nullable = False)
+	id_player = Column(
+		sqlalchemy.Integer,
+		nullable = False,
+		ForeignKey("players.id")
+	)
+	id_match = Column(
+		sqlalchemy.Integer,
+		nullable = False,
+		ForeignKey("matches.id")
+	)
+	total_score = Column(sqlalchemy.Integer)
+
+	__table_args__ = (
+        UniqueConstraint('id_player', 'id_match')
+    )
+
 
 # Interface to the DB
 class DBInterface:
 	def __init__(self, db_info, whitelist = None):
-		self.db_info = db_info
+		# self.db_info = db_info
+		self.engine = sqlalchemy.create_engine(db_info)
 		self.createdb()
 		if type(whitelist) ==  type([]):
 			self.whitelist = [x.lower() for x in whitelist]
@@ -44,34 +57,35 @@ class DBInterface:
 
 	# Creates the DB if it doesn't exist
 	def createdb(self):
-		db = psycopg2.connect(self.db_info)
-		cursor = db.cursor()
-		cursor.execute('''
-			CREATE TABLE IF NOT EXISTS players (
-				id_player SERIAL NOT NULL PRIMARY KEY,
-				name VARCHAR(60) UNIQUE
-			)
-		''')
-		cursor.execute('''
-			CREATE TABLE IF NOT EXISTS matches (
-				id_match SERIAL NOT NULL PRIMARY KEY,
-				link VARCHAR(32) UNIQUE,
-				map VARCHAR(50),
-				timelimit NUMERIC CHECK (timelimit > 0),
-				addtime TIMESTAMP
-			)
-		''')
-		cursor.execute('''
-			CREATE TABLE IF NOT EXISTS playerMatches (
-				id_playerMatches serial NOT NULL PRIMARY KEY,
-				id_player INTEGER REFERENCES players(id_player),
-				id_match INTEGER REFERENCES matches(id_match),
-				total_score INTEGER,
-				UNIQUE(id_player, id_match)
-			)
-		''')
-		db.commit()
-		db.close()
+		Base.metadata.create_all(self.engine)
+		# db = psycopg2.connect(self.db_info)
+		# cursor = db.cursor()
+		# cursor.execute('''
+		# 	CREATE TABLE IF NOT EXISTS players (
+		# 		id_player SERIAL NOT NULL PRIMARY KEY,
+		# 		name VARCHAR(60) UNIQUE
+		# 	)
+		# ''')
+		# cursor.execute('''
+		# 	CREATE TABLE IF NOT EXISTS matches (
+		# 		id_match SERIAL NOT NULL PRIMARY KEY,
+		# 		link VARCHAR(32) UNIQUE,
+		# 		map VARCHAR(50),
+		# 		timelimit NUMERIC CHECK (timelimit > 0),
+		# 		addtime TIMESTAMP
+		# 	)
+		# ''')
+		# cursor.execute('''
+		# 	CREATE TABLE IF NOT EXISTS playerMatches (
+		# 		id_playerMatches serial NOT NULL PRIMARY KEY,
+		# 		id_player INTEGER REFERENCES players(id_player),
+		# 		id_match INTEGER REFERENCES matches(id_match),
+		# 		total_score INTEGER,
+		# 		UNIQUE(id_player, id_match)
+		# 	)
+		# ''')
+		# db.commit()
+		# db.close()
 
 
 	# Adds a name to the whitelist
@@ -82,47 +96,28 @@ class DBInterface:
 
 	# Loads whitelist from the DB (adding each name saved)
 	def loadWithelist(self):
-		with psycopg2.connect(self.db_info) as db:
-			cursor = db.cursor()
-			query = '''
-				SELECT p.name
-				FROM players p;
-			'''
-			cursor.execute(query)
-			self.whitelist = [x[0].lower() for x in cursor.fetchall()]
+		with sqlalchemy.orm.sessionmaker(bind = self.engine) as session:
+			self.whitelist = [x.name.lower() for x in session.query(Player)]
 
 
 	# Adds a player to the DB, only if they're in withelist
 	def createPlayer(self, name):
 		if name.lower() not in self.whitelist:
 			return
-		db = psycopg2.connect(self.db_info)
-		cursor = db.cursor()
-		cursor.execute('''
-			INSERT INTO players (name)
-			VALUES (%(name)s);
-		''', { 'name': name.lower() })
-		db.commit()
-		db.close()
+		with sqlalchemy.orm.sessionmaker(bind = self.engine) as session:
+			session.add(Player(name = name.lower()))
 
-	# Gets the ID of a player from name and surname
+	# Gets the ID of a player from its name
 	def getPlayerId(self, name):
-		with psycopg2.connect(self.db_info) as db:
-			cursor = db.cursor()
-			query = '''
-				SELECT id_player
-				FROM players
-				WHERE name = %(name)s
-			'''
-			cursor.execute(query, { 'name': name.lower() })
-			fetches = cursor.fetchall()
+		with sqlalchemy.orm.sessionmaker(bind = self.engine) as session:
+			fetches = session.query(Player).filter_by(name = name)
 			if len(fetches) == 0:
 				return None
 			if len(fetches) > 1:
 				# Should never happen because of uniqueness constraint, is here
 				# just to be sure
 				raise IndexError('Too many matches found with the passed name')
-			return fetches[0][0]
+			return fetches.first().id
 
 	# Given name and surname, returns the player's ID. If they don't exist,
 	# creates them. If name isn't in whitelist, returns None
@@ -138,32 +133,19 @@ class DBInterface:
 
 	# Adds a match without a category (that is, map and timelimit)
 	def addEmptyMatch(self, link):
-		db = psycopg2.connect(self.db_info)
-		cursor = db.cursor()
-		cursor.execute('''
-			INSERT INTO matches (link, addtime)
-			VALUES (%(link)s, now());
-		''', { 'link': link })
-		db.commit()
-		db.close()
+		with sqlalchemy.orm.sessionmaker(bind = self.engine) as session:
+			session.add(Match(link = link, addtime = datetime.datetime.utcnow()))
 
 	# Gets the ID of a match from its link
 	def getMatchId(self, link):
-		with psycopg2.connect(self.db_info) as db:
-			cursor = db.cursor()
-			query = '''
-				SELECT id_match
-				FROM matches
-				WHERE link = %(link)s
-			'''
-			cursor.execute(query, { 'link': link })
-			fetches = cursor.fetchall()
+		with sqlalchemy.orm.sessionmaker(bind = self.engine) as session:
+			fetches = session.query(Match).filter_by(link = link)
 			if len(fetches) == 0:
 				return None
 			if len(fetches) > 1:
 				# Should never happen because link is unique, is here just to be sure
 				raise IndexError('Too many matches found with the passed link')
-			return fetches[0][0]
+			return fetches.first().id
 
 	# Given link, returns the match's ID. If it doesn't exist, creates it
 	# without category
@@ -177,40 +159,26 @@ class DBInterface:
 
 	# Adds a playerMatch to the DB
 	def createPlayerMatch(self, id_player, id_match, total_score):
-		db = psycopg2.connect(self.db_info)
-		cursor = db.cursor()
-		cursor.execute('''
-			INSERT INTO playerMatches (id_player, id_match, total_score)
-			VALUES (%(id_player)s, %(id_match)s, %(total_score)s);
-		''', {
-			'id_player': id_player,
-			'id_match': id_match,
-			'total_score': total_score
-		})
-		db.commit()
-		db.close()
+		with sqlalchemy.orm.sessionmaker(bind = self.engine) as session:
+			session.add(PlayerMatch(
+				id_player = id_player,
+				id_match = id_match,
+				total_score = total_score
+			))
 
 	# Gets the ID of a player from name and surname
 	def getPlayerMatchId(self, id_player, id_match):
-		with psycopg2.connect(self.db_info) as db:
-			cursor = db.cursor()
-			query = '''
-				SELECT id_playerMatches
-				FROM playerMatches
-				WHERE id_player = %(id_player)s AND id_match = %(id_match)s
-			'''
-			cursor.execute(query, {
-				'id_player': id_player,
-				'id_match': id_match
-			})
-			fetches = cursor.fetchall()
+		with sqlalchemy.orm.sessionmaker(bind = self.engine) as session:
+			fetches = session.query(PlayerMatch).filter_by(
+				id_player = id_player,
+				id_match = id_match
+			)
 			if len(fetches) == 0:
 				return None
 			if len(fetches) > 1:
-				# Should never happen because of uniqueness constraint, is here
-				# just to be sure
-				raise IndexError('Too many matches found with the passed ids')
-			return fetches[0][0]
+				# Should never happen because link is unique, is here just to be sure
+				raise IndexError('Too many matches found with the passed link')
+			return fetches.first().id
 
 	# Given name and surname, returns the player's ID. If they don't exist,
 	# creates them
@@ -224,80 +192,45 @@ class DBInterface:
 
 	# Gets the list of saved links. If a datetime is passed, returns only
 	# matches more recent than that date
-	def getLinksList(self, since):
-		with psycopg2.connect(self.db_info) as db:
-			cursor = db.cursor()
-			query = '''
-				SELECT m.link
-				FROM matches m
-			'''
+	def getLinksList(self, since = None):
+		with sqlalchemy.orm.sessionmaker(bind = self.engine) as session:
+			fetches = session.query(Match.link)
 			if since is not None:
-				query += 'WHERE m.addtime > %(since)s;'
-				cursor.execute(query, { 'since': since })
-			else:
-				query += ';'
-				cursor.execute(query)
-			return map(lambda x: x[0], cursor.fetchall())
+				fetches = fetches.filter(Match.addtime >= since)
+			return fetches
 
 	# Gets the list of saved id_match for the passed category. If a datetime is
 	# passed, returns only matches more recent than that date
-	def getMatchesList(self, mapType, timelimit, since):
-		with psycopg2.connect(self.db_info) as db:
-			cursor = db.cursor()
-			query = '''
-				SELECT m.id_match
-				FROM matches m
-				WHERE m.map = %(map)s
-					AND m.timelimit = %(timelimit)s
-			'''
+	def getMatchesList(self, mapType, timelimit, since = None):
+		with sqlalchemy.orm.sessionmaker(bind = self.engine) as session:
+			fetches = session.query(Match.id).filter_by(
+				map = mapType,
+				timelimit = timelimit
+			)
 			if since is not None:
-				query += 'AND WHERE m.addtime > %(since)s;'
-				cursor.execute(query, {
-					'map': mapType,
-					'timelimit': timelimit,
-					'since': since
-				})
-			else:
-				query += ';'
-				cursor.execute(query, { 'map': mapType, 'timelimit': timelimit })
-			return map(lambda x: x[0], cursor.fetchall())
+				fetches = fetches.filter(Match.addtime >= since)
+			return fetches
 
 	# Gets the list of links of matches that the player 'name' hasn't played
 	def getUnplayedMatchesList(self, name):
-		with psycopg2.connect(self.db_info) as db:
-			cursor = db.cursor()
-			query = '''
-				SELECT m.link
-				FROM matches m
-				WHERE m.id_match NOT IN (
-						SELECT m.id_match
-						FROM matches m, players p, playermatches pm
-						WHERE p.name = %(name)s
-							AND p.id_player = pm.id_player
-							AND pm.id_match = m.id_match
-					);
-			'''
-			cursor.execute(query, { 'name': name })
-			return map(lambda x: x[0], cursor.fetchall())
+		with sqlalchemy.orm.sessionmaker(bind = self.engine) as session:
+			subquery = session.query(Match.id)
+						.filter(Match.id == PlayerMatch.id_match)
+						.filter(PlayerMatch.id_player == Player.id)
+						.filter(Player.name == name)
+			fetches = session.query(Match.link).filter(~Match.id.in_(subquery))
+			return fetches
 
 
 	# Updates a match in the DB, possibly creating any row needed. The first
 	# parameter is the match's link, the second is the json from the page
 	# parsed into a Python dict
 	def updateMatch(self, link, json):
-		id_match = self.findOrCreateMatch(link)
-		# Updates category
-		with psycopg2.connect(self.db_info) as db:
-			cursor = db.cursor()
-			cursor.execute('''
-				UPDATE matches
-				SET map = %(map)s, timelimit = %(timelimit)s
-				WHERE link = %(link)s;
-			''', {
-				'link': link,
-				'map': json['mapSlug'],
-				'timelimit': json['roundTimeLimit']
-			})
+		with sqlalchemy.orm.sessionmaker(bind = self.engine) as session:
+			this_match = session.query(Match).filter_by(link = link).first()
+			id_match = this_match.id
+			this_match.map = json['mapSlug']
+			this_match.link = json['roundTimeLimit']
 		# Possibly creates playermatch for each player
 		for player in json['hiScores']:
 			id_player = self.findOrCreatePlayer(player['playerName'])
