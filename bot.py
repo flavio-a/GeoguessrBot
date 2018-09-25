@@ -77,6 +77,7 @@ def refresh(bot, update, args):
 	for link in links:
 		refreshMatch(link)
 		bot.send_message(chat_id=update.message.chat_id, text='Refreshed ' + GEOGUESSR_URL + 'challenge/' + link)
+	bot.send_message(chat_id=update.message.chat_id, text='Finished refreshing')
 
 
 # Handler fot '/whitelist' command
