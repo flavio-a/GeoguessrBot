@@ -8,9 +8,9 @@ Rank is calculated adding the point earned in each match using the followiong fo
 	yourpoints = yourscore/winnerscore
 If you are one of the first three, it is added 1/2 - 1/n
 where n is the number of people who have3 played the match.
-/toplay plus your nickname allow you to see which matches you haven't played yet.
+/toplay plus your nickname allows you to see which matches you haven't played yet.
 	/toplay Pinco Pallo
 /leaderboards plus the category shows you the best score ever made in a match.
 	/leaderboards world 60
-
+/refresh recent refreshes the matches of the last two weeks
 
