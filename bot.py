@@ -29,6 +29,14 @@ def start(bot, update):
 	)
 
 
+# Handler for '/help' command
+def help(bot, update):
+	with open('help', 'r') as help_file:
+	bot.send_message(
+		chat_id = update.message.chat_id,
+		text = help_file.read()
+	)
+
 # Handler for '/leaderboards' command
 def leaderboards(bot, update, args):
 	mapType = args[0].lower() if len(args) > 0 else 'world'
@@ -188,6 +196,7 @@ def processMessage(bot, update):
 if __name__ == "__main__":
 	# Binding handlers
 	updater.dispatcher.add_handler(telegram.ext.CommandHandler('start', start))
+	updater.dispatcher.add_handler(telegram.ext.CommandHandler('help', help))
 	updater.dispatcher.add_handler(telegram.ext.CommandHandler('rank', rank, pass_args=True))
 	updater.dispatcher.add_handler(telegram.ext.CommandHandler('leaderboards', leaderboards, pass_args=True))
 	updater.dispatcher.add_handler(telegram.ext.CommandHandler('refresh', refresh, pass_args=True))
