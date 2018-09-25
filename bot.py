@@ -4,6 +4,7 @@ import re
 import urllib, urllib.request
 import json
 import operator
+import datetime
 
 import db_interface
 import config
@@ -66,7 +67,11 @@ def refresh(bot, update, args):
 		)
 		return
 	if args[0].lower() == 'all':
-		links = db.getLinksList()
+		logging.debug('REFRESH: getting all links')
+		links = db.getLinksList(None)
+	elif args[0].lower() == 'recent':
+		logging.debug('REFRESH: getting only recent links')
+		links = db.getLinksList(datetime.datetime.now() - datetime.timedelta(days=14))
 	else:
 		links = [GEOGUESSR_RE.search(args[0]).group(1)]
 	for link in links:
@@ -175,10 +180,7 @@ def toPlay(bot, update, args):
 def processMessage(bot, update):
 	match = GEOGUESSR_RE.search(update.message.text)
 	if match is not None:
-		refreshMatch(
-			match.group(0).replace('/challenge/', '/results/'),
-			match.group(1)
-		)
+		refreshMatch(match.group(1))
 		bot.send_message(chat_id=update.message.chat_id, text='Trovato link di GeoGuessr')
 
 

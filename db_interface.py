@@ -25,7 +25,8 @@ class DBInterface:
 				id_match SERIAL NOT NULL PRIMARY KEY,
 				link VARCHAR(32) UNIQUE,
 				map VARCHAR(50),
-				timelimit NUMERIC CHECK (timelimit > 0)
+				timelimit NUMERIC CHECK (timelimit > 0),
+				addtime TIMESTAMP
 			)
 		''')
 		cursor.execute('''
@@ -108,14 +109,13 @@ class DBInterface:
 		db = psycopg2.connect(self.db_info)
 		cursor = db.cursor()
 		cursor.execute('''
-			INSERT INTO matches (link)
-			VALUES (%(link)s);
+			INSERT INTO matches (link, addtime)
+			VALUES (%(link)s, now());
 		''', { 'link': link })
 		db.commit()
 		db.close()
 
-	# Gets the ID of a match from its link. Type of map and time limit are
-	# optional
+	# Gets the ID of a match from its link
 	def getMatchId(self, link):
 		with psycopg2.connect(self.db_info) as db:
 			cursor = db.cursor()
@@ -190,18 +190,24 @@ class DBInterface:
 		return self.getPlayerMatchId(id_player, id_match)
 
 
-	# Gets the list of saved links
-	def getLinksList(self):
+	# Gets the list of saved links. If a datetime is passed, returns only
+	# matches more recent than that date
+	def getLinksList(self, since):
 		with psycopg2.connect(self.db_info) as db:
 			cursor = db.cursor()
 			query = '''
 				SELECT m.link
-				FROM matches m;
+				FROM matches m
 			'''
-			cursor.execute(query)
+			if since is not None:
+				query += 'WHERE m.addtime > %(since)s;'
+				cursor.execute(query, { 'since': since })
+			else:
+				query += ';'
+				cursor.execute(query)
 			return map(lambda x: x[0], cursor.fetchall())
 
-	# Gets the list of saved id_match  for the passed category
+	# Gets the list of saved id_match for the passed category
 	def getMatchesList(self, mapType, timelimit):
 		with psycopg2.connect(self.db_info) as db:
 			cursor = db.cursor()
