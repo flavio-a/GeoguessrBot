@@ -209,7 +209,7 @@ class DBInterface:
 		fetches = session.query(Match.link)
 		if since is not None:
 			fetches = fetches.filter(Match.addtime >= since)
-		return [x[0] for x in fetches]
+		return [x[0] for x in fetches.all()]
 
 	# Gets the list of saved id_match for the passed category. If a datetime is
 	# passed, returns only matches more recent than that date
@@ -221,7 +221,7 @@ class DBInterface:
 		)
 		if since is not None:
 			fetches = fetches.filter(Match.addtime >= since)
-		return [x[0] for x in fetches]
+		return [x[0] for x in fetches.all()]
 
 	# Gets the list of links of matches that the player 'name' hasn't played
 	def getUnplayedMatchesList(self, name):
@@ -261,51 +261,34 @@ class DBInterface:
 
 	# Gets the list of pairs (player, score) for a single match from its ID
 	def getMatchResults(self, match_id):
-		with psycopg2.connect(self.db_info) as db:
-			cursor = db.cursor()
-			query = '''
-				SELECT p.name, SUM(pm.total_score) AS score
-				FROM playerMatches pm, players p
-				WHERE p.id_player = pm.id_player
-					AND pm.id_match = %(match_id)s
-				GROUP BY p.id_player, p.name
-				ORDER BY score DESC;
-			'''
-			cursor.execute(query, { 'match_id': match_id })
-			return cursor.fetchall()
+		session = sqlalchemy.orm.sessionmaker(bind = self.engine)()
+		return session\
+			.query(Player.name, sqlalchemy.func.sum(PlayerMatch.total_score))\
+			.filter(Player.id == PlayerMatch.id_player)\
+			.filter(PlayerMatch.id_match == match_id)\
+			.group_by(Player.id, Player.name)\
+			.order_by(sqlalchemy.func.sum(PlayerMatch.total_score)).all()
 
 	# Gets the list of pairs (player, total_score) for the passed category
 	def getScoreList(self, mapType, timelimit):
-		with psycopg2.connect(self.db_info) as db:
-			cursor = db.cursor()
-			query = '''
-				SELECT p.name, SUM(pm.total_score) AS score
-				FROM playerMatches pm, players p, matches m
-				WHERE p.id_player = pm.id_player
-					AND pm.id_match = m.id_match
-					AND m.map = %(map)s
-					AND m.timelimit = %(timelimit)s
-				GROUP BY p.id_player, p.name
-				ORDER BY score DESC;
-			'''
-			cursor.execute(query, { 'map': mapType, 'timelimit': timelimit })
-			return cursor.fetchall()
+		session = sqlalchemy.orm.sessionmaker(bind = self.engine)()
+		return session\
+			.query(Player.name, sqlalchemy.func.sum(PlayerMatch.total_score))\
+			.filter(Player.id == PlayerMatch.id_player)\
+			.filter(PlayerMatch.id_match == Match.id)\
+			.filter(Match.map == mapType, Match.timelimit == timelimit)\
+			.group_by(Player.id, Player.name)\
+			.order_by(sqlalchemy.func.sum(PlayerMatch.total_score)).all()
 
 	# Gets a list of at most 3 pairs (player, total_score) containing the
 	# records for the passed category
 	def getLeaderbords(self, mapType, timelimit):
-		with psycopg2.connect(self.db_info) as db:
-			cursor = db.cursor()
-			query = '''
-				SELECT p.name, MAX(pm.total_score) AS score
-				FROM playerMatches pm, players p, matches m
-				WHERE p.id_player = pm.id_player
-					AND pm.id_match = m.id_match
-					AND m.map = %(map)s
-					AND m.timelimit = %(timelimit)s
-				GROUP BY p.id_player, p.name
-				ORDER BY score DESC
-				LIMIT 3;
-			'''
-			cursor.execute(query, { 'map': mapType, 'timelimit': timelimit })
-			return cursor.fetchall()
+		session = sqlalchemy.orm.sessionmaker(bind = self.engine)()
+		return session\
+			.query(Player.name, sqlalchemy.func.max(PlayerMatch.total_score))\
+			.filter(Player.id == PlayerMatch.id_player)\
+			.filter(PlayerMatch.id_match == Match.id)\
+			.filter(Match.map == mapType, Match.timelimit == timelimit)\
+			.group_by(Player.id, Player.name)\
+			.order_by(sqlalchemy.func.max(PlayerMatch.total_score))\
+			.limit(3)
