@@ -1,7 +1,7 @@
 import logging
 
 TOKEN = 'your-token'
-DB_LOGIN_INFO = 'host=localhost user=username password=pwd dbname=cusu'
+DB_LOGIN_INFO = 'postgresql+psycopg2://user:password@host:port/dbname'
 
 LOG_FILE = 'geoguessr.log'
 LOG_LEVEL = logging.DEBUG
