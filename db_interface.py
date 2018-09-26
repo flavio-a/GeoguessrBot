@@ -24,7 +24,7 @@ class Match(Base):
 
 # PlayerMatches class (mapped to db table playerMatches)
 class PlayerMatch(Base):
-	__tablename__ = 'playerMatches'
+	__tablename__ = 'playermatches'
 
 	id = Column(sqlalchemy.Integer, primary_key = True, nullable = False)
 	id_player = Column(
@@ -119,7 +119,8 @@ class DBInterface:
 		else:
 			session = sqlalchemy.orm.sessionmaker(bind = self.engine)()
 		# Should never find more than one because of uniqueness constraint
-		pl = session.query(Player.id).filter_by(name = name).one_or_none()
+		pl = session.query(Player.id).filter_by(name = name.lower())\
+				.one_or_none()
 		return pl[0] if pl is not None else pl
 
 	# Given name and surname, returns the player's ID. If they don't exist,
@@ -127,11 +128,12 @@ class DBInterface:
 	def findOrCreatePlayer(self, name, **kwargs):
 		if name.lower() not in self.whitelist:
 			return None
-		player_id = self.getPlayerId(name, session = kwargs['session'])
+		session = kwargs['session'] if 'session' in kwargs else None
+		player_id = self.getPlayerId(name, session = session)
 		if player_id:
 			return player_id
-		self.createPlayer(name, session = kwargs['session'])
-		return self.getPlayerId(name, session = kwargs['session'])
+		self.createPlayer(name, session = session)
+		return self.getPlayerId(name, session = session)
 
 
 	# Adds a match without a category (that is, map and timelimit)
@@ -157,11 +159,12 @@ class DBInterface:
 	# Given link, returns the match's ID. If it doesn't exist, creates it
 	# without category
 	def findOrCreateMatch(self, link, **kwargs):
-		match_id = self.getMatchId(link, session = kwargs['session'])
+		session = kwargs['session'] if 'session' in kwargs else None
+		match_id = self.getMatchId(link, session = session)
 		if match_id:
 			return match_id
-		self.addEmptyMatch(link, session = kwargs['session'])
-		return self.getMatchId(link, session = kwargs['session'])
+		self.addEmptyMatch(link, session = session)
+		return self.getMatchId(link, session = session)
 
 
 	# Adds a playerMatch to the DB
@@ -194,11 +197,21 @@ class DBInterface:
 	# Given name and surname, returns the player's ID. If they don't exist,
 	# creates them
 	def findOrCreatePlayerMatch(self, id_player, id_match, total_score, **kwargs):
-		playerMatch_id = self.getPlayerMatchId(id_player, id_match, session = kwargs['session'])
+		session = kwargs['session'] if 'session' in kwargs else None
+		playerMatch_id = self.getPlayerMatchId(
+			id_player,
+			id_match,
+			session = session
+		)
 		if playerMatch_id:
 			return playerMatch_id
-		self.createPlayerMatch(id_player, id_match, total_score, session = kwargs['session'])
-		return self.getPlayerMatchId(id_player, id_match, session = kwargs['session'])
+		self.createPlayerMatch(
+			id_player,
+			id_match,
+			total_score,
+			session = session
+		)
+		return self.getPlayerMatchId(id_player, id_match, session = session)
 
 
 	# Gets the list of saved links. If a datetime is passed, returns only
@@ -231,7 +244,7 @@ class DBInterface:
 					.filter(PlayerMatch.id_player == Player.id)\
 					.filter(Player.name == name)
 		fetches = session.query(Match.link).filter(~Match.id.in_(subquery))
-		return [x[0] for x in fetches]
+		return [x[0] for x in fetches.all()]
 
 
 	# Updates a match in the DB, possibly creating any row needed. The first
@@ -267,7 +280,8 @@ class DBInterface:
 			.filter(Player.id == PlayerMatch.id_player)\
 			.filter(PlayerMatch.id_match == match_id)\
 			.group_by(Player.id, Player.name)\
-			.order_by(sqlalchemy.func.sum(PlayerMatch.total_score)).all()
+			.order_by(sqlalchemy.func.sum(PlayerMatch.total_score).desc())\
+			.all()
 
 	# Gets the list of pairs (player, total_score) for the passed category
 	def getScoreList(self, mapType, timelimit):
@@ -278,7 +292,8 @@ class DBInterface:
 			.filter(PlayerMatch.id_match == Match.id)\
 			.filter(Match.map == mapType, Match.timelimit == timelimit)\
 			.group_by(Player.id, Player.name)\
-			.order_by(sqlalchemy.func.sum(PlayerMatch.total_score)).all()
+			.order_by(sqlalchemy.func.sum(PlayerMatch.total_score).desc())\
+			.all()
 
 	# Gets a list of at most 3 pairs (player, total_score) containing the
 	# records for the passed category
@@ -290,5 +305,5 @@ class DBInterface:
 			.filter(PlayerMatch.id_match == Match.id)\
 			.filter(Match.map == mapType, Match.timelimit == timelimit)\
 			.group_by(Player.id, Player.name)\
-			.order_by(sqlalchemy.func.max(PlayerMatch.total_score))\
-			.limit(3)
+			.order_by(sqlalchemy.func.max(PlayerMatch.total_score).desc())\
+			.limit(3).all()
