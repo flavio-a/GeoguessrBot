@@ -58,34 +58,6 @@ class DBInterface:
 	# Creates the DB if it doesn't exist
 	def createdb(self):
 		Base.metadata.create_all(self.engine)
-		# db = psycopg2.connect(self.db_info)
-		# cursor = db.cursor()
-		# cursor.execute('''
-		# 	CREATE TABLE IF NOT EXISTS players (
-		# 		id_player SERIAL NOT NULL PRIMARY KEY,
-		# 		name VARCHAR(60) UNIQUE
-		# 	)
-		# ''')
-		# cursor.execute('''
-		# 	CREATE TABLE IF NOT EXISTS matches (
-		# 		id_match SERIAL NOT NULL PRIMARY KEY,
-		# 		link VARCHAR(32) UNIQUE,
-		# 		map VARCHAR(50),
-		# 		timelimit NUMERIC CHECK (timelimit > 0),
-		# 		addtime TIMESTAMP
-		# 	)
-		# ''')
-		# cursor.execute('''
-		# 	CREATE TABLE IF NOT EXISTS playerMatches (
-		# 		id_playerMatches serial NOT NULL PRIMARY KEY,
-		# 		id_player INTEGER REFERENCES players(id_player),
-		# 		id_match INTEGER REFERENCES matches(id_match),
-		# 		total_score INTEGER,
-		# 		UNIQUE(id_player, id_match)
-		# 	)
-		# ''')
-		# db.commit()
-		# db.close()
 
 
 	# Adds a name to the whitelist
@@ -252,8 +224,8 @@ class DBInterface:
 	# parsed into a Python dict
 	def updateMatch(self, link, json):
 		session = sqlalchemy.orm.sessionmaker(bind = self.engine)()
-		this_match = session.query(Match).filter_by(link = link).first()
-		id_match = this_match.id
+		id_match = self.findOrCreateMatch(link, session = session)
+		this_match = session.query(Match).filter_by(id = id_match).first()
 		this_match.map = json['mapSlug']
 		this_match.timelimit = json['roundTimeLimit']
 		# Possibly creates playermatch for each player
