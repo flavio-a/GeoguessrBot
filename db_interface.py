@@ -22,7 +22,7 @@ class Match(Base):
 	timelimit = Column(sqlalchemy.Integer, sqlalchemy.CheckConstraint('timelimit > 0'))
 	addtime = Column(sqlalchemy.DateTime, default = datetime.datetime.utcnow)
 
-# PlayerMatches class (mapped to db table playerMatches)
+# PlayerMatches class (mapped to db table playermatches)
 class PlayerMatch(Base):
 	__tablename__ = 'playermatches'
 
@@ -43,6 +43,19 @@ class PlayerMatch(Base):
         sqlalchemy.UniqueConstraint('id_player', 'id_match'),
     )
 
+# Season class (mapped to db table seasons)
+class Season(Base):
+	__tablename__ = 'seasons'
+
+	id = Column(sqlalchemy.Integer, primary_key = True, nullable = False)
+	num = Column(
+		sqlalchemy.Integer,
+		sqlalchemy.Sequence('seasons_num_sequence', start = 1, increment = 1),
+		unique = True,
+		nullable = False
+	)
+	endtime = Column(sqlalchemy.DateTime)
+
 
 # Interface to the DB
 class DBInterface:
@@ -58,35 +71,6 @@ class DBInterface:
 	# Creates the DB if it doesn't exist
 	def createdb(self):
 		Base.metadata.create_all(self.engine)
-		# db = psycopg2.connect(self.db_info)
-		# cursor = db.cursor()
-		# cursor.execute('''
-		# 	CREATE TABLE IF NOT EXISTS players (
-		# 		id_player SERIAL NOT NULL PRIMARY KEY,
-		# 		name VARCHAR(60) UNIQUE
-		# 	)
-		# ''')
-		# cursor.execute('''
-		# 	CREATE TABLE IF NOT EXISTS matches (
-		# 		id_match SERIAL NOT NULL PRIMARY KEY,
-		# 		link VARCHAR(32) UNIQUE,
-		# 		map VARCHAR(50),
-		# 		timelimit NUMERIC CHECK (timelimit > 0),
-		# 		addtime TIMESTAMP
-		# 	)
-		# ''')
-		# cursor.execute('''
-		# 	CREATE TABLE IF NOT EXISTS playerMatches (
-		# 		id_playerMatches serial NOT NULL PRIMARY KEY,
-		# 		id_player INTEGER REFERENCES players(id_player),
-		# 		id_match INTEGER REFERENCES matches(id_match),
-		# 		total_score INTEGER,
-		# 		UNIQUE(id_player, id_match)
-		# 	)
-		# ''')
-		# db.commit()
-		# db.close()
-
 
 	# Adds a name to the whitelist
 	def addToWhitelist(self, name):
@@ -214,14 +198,63 @@ class DBInterface:
 		return self.getPlayerMatchId(id_player, id_match, session = session)
 
 
+	# Get the season of a match (from it's id)
+	def getMatchSeason(self, id_match, **kwargs):
+		if 'session' in kwargs:
+			session = kwargs['session']
+		else:
+			session = sqlalchemy.orm.sessionmaker(bind = self.engine)()
+		return session.query(sqlalchemy.func.min(Season.num))\
+			.filter(sqlalchemy.or_(Season.endtime >= Match.addtime, Season.endtime == None))\
+			.filter(Match.id == id_match).one()[0]
+
+	# Get current season
+	def getCurrentSeason(self):
+		session = sqlalchemy.orm.sessionmaker(bind = self.engine)()
+		return session.query(sqlalchemy.func.max(Season.num)).one()[0]
+
+	# Decides whether a match should be updated or not
+	def shouldUpdate(self, id_match, **kwargs):
+		if 'session' in kwargs:
+			session = kwargs['session']
+		else:
+			session = sqlalchemy.orm.sessionmaker(bind = self.engine)()
+		season_num = self.getMatchSeason(id_match, session = session)
+		season_end = session.query(Season.endtime)\
+			.filter(Season.num == season_num).one()[0]
+		if season_end is None:
+			return True
+		else:
+			return season_end >= datetime.datetime.now() - datetime.timedelta(days = 1)
+
+
 	# Gets the list of saved links. If a datetime is passed, returns only
 	# matches more recent than that date
 	def getLinksList(self, since = None):
 		session = sqlalchemy.orm.sessionmaker(bind = self.engine)()
-		# Should never find more than one because of uniqueness constraint
 		fetches = session.query(Match.link)
 		if since is not None:
 			fetches = fetches.filter(Match.addtime >= since)
+		return [x[0] for x in fetches.all()]
+
+	# Gets the list of links in not closed seasons
+	def getOpenSeasonsList(self):
+		session = sqlalchemy.orm.sessionmaker(bind = self.engine)()
+		m = sqlalchemy.orm.aliased(Match, name='m')
+		subquery = session.query(Season)\
+			.filter(sqlalchemy.or_(
+				sqlalchemy.or_(
+					m.addtime <= Season.endtime,
+					Season.endtime == None
+				),
+				~sqlalchemy.or_(
+					Season.endtime >= datetime.datetime.now() - datetime.timedelta(days = 1),
+					Season.endtime == None
+				)
+			))
+		fetches = session.query(m.link)\
+			.filter(~subquery.exists())
+		print(str(fetches))
 		return [x[0] for x in fetches.all()]
 
 	# Gets the list of saved id_match for the passed category. If a datetime is
@@ -250,10 +283,14 @@ class DBInterface:
 	# Updates a match in the DB, possibly creating any row needed. The first
 	# parameter is the match's link, the second is the json from the page
 	# parsed into a Python dict
+	# A match in a closed season won't be updated
 	def updateMatch(self, link, json):
 		session = sqlalchemy.orm.sessionmaker(bind = self.engine)()
 		this_match = session.query(Match).filter_by(link = link).first()
 		id_match = this_match.id
+		if not self.shouldUpdate(id_match, season = season):
+			# closed season
+			return
 		this_match.map = json['mapSlug']
 		this_match.timelimit = json['roundTimeLimit']
 		# Possibly creates playermatch for each player
