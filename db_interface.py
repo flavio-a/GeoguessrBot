@@ -237,25 +237,19 @@ class DBInterface:
 			fetches = fetches.filter(Match.addtime >= since)
 		return [x[0] for x in fetches.all()]
 
-	# Gets the list of links in not closed seasons
-	def getOpenSeasonsList(self):
+	# Gets the list of links in a certain season
+	def getSeasonList(self, season = None):
+		if season is None:
+			season = self.getCurrentSeason()
 		session = sqlalchemy.orm.sessionmaker(bind = self.engine)()
 		m = sqlalchemy.orm.aliased(Match, name='m')
-		subquery = session.query(Season)\
-			.filter(sqlalchemy.or_(
-				sqlalchemy.or_(
-					m.addtime <= Season.endtime,
-					Season.endtime == None
-				),
-				~sqlalchemy.or_(
-					Season.endtime >= datetime.datetime.now() - datetime.timedelta(days = 1),
-					Season.endtime == None
-				)
-			))
+		subquery = session.query(sqlalchemy.func.min(Season.num))\
+			.filter(sqlalchemy.or_(Season.endtime >= Match.addtime, Season.endtime == None))\
+			.filter(Match.id == m.id)
 		fetches = session.query(m.link)\
-			.filter(~subquery.exists())
-		print(str(fetches))
+			.filter(season == sqlalchemy.all_(subquery))
 		return [x[0] for x in fetches.all()]
+
 
 	# Gets the list of saved id_match for the passed category. If a datetime is
 	# passed, returns only matches more recent than that date
