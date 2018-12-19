@@ -21,6 +21,11 @@ class Match(Base):
 	map = Column(sqlalchemy.String(50))
 	timelimit = Column(sqlalchemy.Integer, sqlalchemy.CheckConstraint('timelimit > 0'))
 	addtime = Column(sqlalchemy.DateTime, default = datetime.datetime.utcnow)
+	id_season = Column(
+		sqlalchemy.Integer,
+		sqlalchemy.ForeignKey("seasons.id"),
+		nullable = False
+	)
 
 # PlayerMatches class (mapped to db table playermatches)
 class PlayerMatch(Base):
@@ -126,7 +131,11 @@ class DBInterface:
 			session = kwargs['session']
 		else:
 			session = sqlalchemy.orm.sessionmaker(bind = self.engine)()
-		session.add(Match(link = link, addtime = datetime.datetime.utcnow()))
+		session.add(Match(\
+			link = link,\
+			addtime = datetime.datetime.utcnow(),\
+			session = self.getCurrentSeason()
+		))
 		if 'session' not in kwargs:
 			session.commit()
 
@@ -198,15 +207,18 @@ class DBInterface:
 		return self.getPlayerMatchId(id_player, id_match, session = session)
 
 
-	# Get the season of a match (from it's id)
+	# Get the season of a match (from it's id) and updates its bind in the db
 	def getMatchSeason(self, id_match, **kwargs):
 		if 'session' in kwargs:
 			session = kwargs['session']
 		else:
 			session = sqlalchemy.orm.sessionmaker(bind = self.engine)()
-		return session.query(sqlalchemy.func.min(Season.num))\
+		season_id = session.query(sqlalchemy.func.min(Season.num))\
 			.filter(sqlalchemy.or_(Season.endtime >= Match.addtime, Season.endtime == None))\
 			.filter(Match.id == id_match).one()[0]
+		session.query(Match).filter_by(id = id_match).first().id_season = season_id
+		session.commit()
+		return season_id
 
 	# Get current season
 	def getCurrentSeason(self):
@@ -238,7 +250,7 @@ class DBInterface:
 		return [x[0] for x in fetches.all()]
 
 	# Gets the list of links in a certain season
-	def getSeasonList(self, season = None):
+	def getSeasonList(self, mapType, timelimit, season = None):
 		if season is None:
 			season = self.getCurrentSeason()
 		session = sqlalchemy.orm.sessionmaker(bind = self.engine)()
@@ -247,9 +259,12 @@ class DBInterface:
 			.filter(sqlalchemy.or_(Season.endtime >= Match.addtime, Season.endtime == None))\
 			.filter(Match.id == m.id)
 		fetches = session.query(m.link)\
-			.filter(season == sqlalchemy.all_(subquery))
+			.filter(season == sqlalchemy.all_(subquery))\
+			.filter_by(
+				map = mapType,
+				timelimit = timelimit
+			)
 		return [x[0] for x in fetches.all()]
-
 
 	# Gets the list of saved id_match for the passed category. If a datetime is
 	# passed, returns only matches more recent than that date
@@ -314,14 +329,16 @@ class DBInterface:
 			.order_by(sqlalchemy.func.sum(PlayerMatch.total_score).desc())\
 			.all()
 
-	# Gets the list of pairs (player, total_score) for the passed category
-	def getScoreList(self, mapType, timelimit):
+	# Gets the list of pairs (player, total_score) for the passed category and
+	# season
+	def getScoreList(self, mapType, timelimit, season):
 		session = sqlalchemy.orm.sessionmaker(bind = self.engine)()
 		return session\
 			.query(Player.name, sqlalchemy.func.sum(PlayerMatch.total_score))\
 			.filter(Player.id == PlayerMatch.id_player)\
 			.filter(PlayerMatch.id_match == Match.id)\
 			.filter(Match.map == mapType, Match.timelimit == timelimit)\
+			.fiilter(Match.id_season == season)\
 			.group_by(Player.id, Player.name)\
 			.order_by(sqlalchemy.func.sum(PlayerMatch.total_score).desc())\
 			.all()

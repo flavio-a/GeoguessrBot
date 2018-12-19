@@ -120,7 +120,7 @@ def getPoints(scores):
 # sorted by points, containing the total point and the average points per match
 # for each people in the passed category
 def calcPoints(mapType, timelimit):
-	matches_list = db.getMatchesList(mapType, timelimit)
+	matches_list = db.getSeasonList(mapType, timelimit)
 	total_scores = {}
 	for match_id in matches_list:
 		scores = getPoints(db.getMatchResults(match_id))
