@@ -258,7 +258,7 @@ class DBInterface:
 		subquery = session.query(sqlalchemy.func.min(Season.num))\
 			.filter(sqlalchemy.or_(Season.endtime >= Match.addtime, Season.endtime == None))\
 			.filter(Match.id == m.id)
-		fetches = session.query(m.link)\
+		fetches = session.query(m.id)\
 			.filter(season == sqlalchemy.all_(subquery))\
 			.filter_by(
 				map = mapType,
